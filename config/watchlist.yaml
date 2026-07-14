@@ -1,0 +1,13 @@
+# הרשימה של ארז — מי לעקוב אחריו ומה לחפש.
+# זה הקובץ שלך. תוסיף, תוריד, תשנה — הדוח של מחר ישתנה בהתאם.
+#
+# platform: instagram | tiktok | youtube
+# handle: השם בכתובת של הפרופיל (בלי @)
+
+creators:
+  - platform: instagram
+    handle: andrejko.epta
+
+topics:
+  - random acts of kindness
+  - surprise gift stranger
