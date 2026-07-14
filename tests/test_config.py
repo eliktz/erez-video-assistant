@@ -31,6 +31,15 @@ def test_load_watchlist_rejects_unknown_platform(tmp_path):
         config.load_watchlist(str(p))
 
 
+@pytest.mark.parametrize("contents", ["[]\n", "false\n", "0\n", '""\n'])
+def test_load_watchlist_rejects_falsey_non_mapping(contents, tmp_path):
+    p = tmp_path / "watchlist.yaml"
+    p.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be a YAML mapping"):
+        config.load_watchlist(str(p))
+
+
 def test_load_settings_returns_mapping(tmp_path):
     p = tmp_path / "settings.yaml"
     p.write_text("digest:\n  hour: 7\n", encoding="utf-8")

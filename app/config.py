@@ -23,7 +23,11 @@ class Watchlist:
 
 def load_watchlist(path: str = "config/watchlist.yaml") -> Watchlist:
     """Read Erez's creator list. A typo here should fail now, not at 07:00."""
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Watchlist in {path} must be a YAML mapping")
     creators = []
     for entry in data.get("creators") or []:
         platform = str(entry["platform"]).lower()
