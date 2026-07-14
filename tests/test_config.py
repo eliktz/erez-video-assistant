@@ -31,6 +31,13 @@ def test_load_watchlist_rejects_unknown_platform(tmp_path):
         config.load_watchlist(str(p))
 
 
+def test_load_settings_returns_mapping(tmp_path):
+    p = tmp_path / "settings.yaml"
+    p.write_text("digest:\n  hour: 7\n", encoding="utf-8")
+
+    assert config.load_settings(str(p)) == {"digest": {"hour": 7}}
+
+
 @pytest.mark.parametrize("contents", ["- item\n", "settings\n"])
 def test_load_settings_rejects_non_mapping(contents, tmp_path):
     p = tmp_path / "settings.yaml"
