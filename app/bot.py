@@ -104,3 +104,17 @@ def analyze_url(url: str, *, deps: Deps) -> str:
 
     compose_reply = deps.compose_reply or compose.reply_about_video
     return compose_reply(analysis, deps.persona, deps.claude_client)
+
+
+def costs_message(conn, *, month: str) -> str:
+    """Spend so far this month, in chat, before the credit card says anything."""
+    rows = usage.month_to_date(conn, month)
+    if not rows:
+        return f"עדיין לא הוצאנו כלום ב-{month}."
+    lines = [f"💰 ההוצאות ב-{month}:", ""]
+    total = 0.0
+    for row in rows:
+        total += row["cost_usd"]
+        lines.append(f"  {row['provider']}: ${row['cost_usd']:.2f} ({row['calls']} קריאות)")
+    lines += ["", f"סה״כ: ${total:.2f}"]
+    return "\n".join(lines)

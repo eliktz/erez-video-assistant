@@ -1,6 +1,7 @@
 """Entrypoint: one process, bot + scheduler. Run with `make run`."""
 
 import logging
+from datetime import UTC
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -34,6 +35,13 @@ async def on_start(update: Update, _ctx) -> None:
         "היי ארז 👋\nשלח לי לינק לרילס/טיקטוק/שורטס ואני אנתח לך אותו.\n"
         "כל בוקר ב-7:00 תקבל ממני דוח טרנדים."
     )
+
+
+async def on_costs(update: Update, ctx) -> None:
+    from datetime import datetime
+
+    month = datetime.now(UTC).strftime("%Y-%m")
+    await update.message.reply_text(bot.costs_message(ctx.bot_data["deps"].conn, month=month))
 
 
 async def on_message(update: Update, ctx) -> None:
@@ -94,6 +102,7 @@ def main() -> None:
     app = Application.builder().token(config.env("TELEGRAM_BOT_TOKEN")).build()
     app.bot_data["deps"] = build_deps()
     app.add_handler(CommandHandler("start", on_start))
+    app.add_handler(CommandHandler("costs", on_costs))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     log.info("Bot starting (long polling)")
     start_scheduler(app.bot_data["deps"])
