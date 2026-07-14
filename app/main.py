@@ -2,12 +2,16 @@
 
 import logging
 
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from app import bot, config
+from app import bot, config, jobs
 from app.analyze import gemini
+from app.collect.youtube import YouTubeSource
 from app.digest import compose
+from app.notify.telegram import TelegramNotifier
 from app.store import db
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s %(message)s", level=logging.INFO)
@@ -42,12 +46,57 @@ async def on_message(update: Update, ctx) -> None:
     await update.message.reply_text(reply)
 
 
+def start_scheduler(deps: bot.Deps) -> None:
+    """APScheduler in-process: no cron, no second system to learn."""
+    settings = config.load_settings()
+    token = config.env("TELEGRAM_BOT_TOKEN")
+    erez = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_EREZ"))
+    admin = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_ADMIN"))
+    sources = [YouTubeSource(config.env("YOUTUBE_API_KEY"))]
+
+    scheduler = BackgroundScheduler(timezone="Asia/Jerusalem")
+
+    def _digest_job() -> None:
+        jobs.run_digest(
+            deps=deps,
+            sources=sources,
+            notifier=erez,
+            settings=settings,
+            watchlist=config.load_watchlist(),
+            compose_digest=compose.write_digest,
+            template=config.load_prompt("digest"),
+            now=bot.utc_now(),
+        )
+
+    def _deadman_job() -> None:
+        jobs.deadman_check(
+            conn=deps.conn,
+            admin_notifier=admin,
+            for_date=bot.utc_now()[:10],
+            now=bot.utc_now(),
+        )
+
+    scheduler.add_job(
+        _digest_job,
+        CronTrigger(hour=settings["digest"]["hour"], minute=settings["digest"]["minute"]),
+        id="daily_digest",
+    )
+    scheduler.add_job(
+        _deadman_job,
+        CronTrigger(hour=settings["digest"]["hour"], minute=settings["digest"]["deadman_minute"]),
+        id="deadman",
+    )
+    scheduler.start()
+    log.info("Scheduler started: digest at %02d:00 Asia/Jerusalem", settings["digest"]["hour"])
+
+
 def main() -> None:
     app = Application.builder().token(config.env("TELEGRAM_BOT_TOKEN")).build()
     app.bot_data["deps"] = build_deps()
     app.add_handler(CommandHandler("start", on_start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     log.info("Bot starting (long polling)")
+    start_scheduler(app.bot_data["deps"])
     app.run_polling()
 
 
