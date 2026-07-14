@@ -149,3 +149,31 @@ def test_deadman_is_quiet_when_digest_was_sent():
     jobs.deadman_check(conn=conn, admin_notifier=admin, for_date="2026-07-14", now=NOW)
 
     assert admin.sent == []
+
+
+def test_run_digest_leaves_sent_unset_when_delivery_fails(tmp_path):
+    import pytest
+
+    deps = _deps(tmp_path)
+
+    class _BoomNotifier:
+        def send(self, text):
+            raise RuntimeError("telegram down")
+
+    with pytest.raises(RuntimeError):
+        jobs.run_digest(
+            deps=deps,
+            sources=[_FakeSource([_candidate()])],
+            notifier=_BoomNotifier(),
+            settings=_settings(),
+            watchlist=None,
+            compose_digest=lambda items, template, client: "דוח",
+            template="t",
+            now=NOW,
+        )
+
+    # A failed send must NOT record sent_at — else the dead-man's-switch stays silent.
+    row = deps.conn.execute(
+        "SELECT sent_at FROM digests WHERE for_date='2026-07-14'"
+    ).fetchone()
+    assert row is None or row["sent_at"] is None

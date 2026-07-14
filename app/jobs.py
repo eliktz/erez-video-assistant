@@ -72,6 +72,9 @@ def run_digest(
     body = compose_digest(items, template, deps.claude_client)
     html_path = page.write(page.render(body, items, for_date=for_date), "web/out", for_date)
 
+    # Send first: if delivery raises, sent_at is never written, so the 07:30 dead-man's-switch
+    # fires instead of silently believing the digest went out.
+    notifier.send(body)
     deps.conn.execute(
         """
         INSERT INTO digests (for_date, body_he, html_path, sent_at, created_at)
@@ -83,7 +86,6 @@ def run_digest(
         (for_date, body, html_path, now, now),
     )
     deps.conn.commit()
-    notifier.send(body)
     return body
 
 

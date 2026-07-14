@@ -56,7 +56,10 @@ def connect(path: str) -> sqlite3.Connection:
     """Open the database, creating the file and schema if needed."""
     if path != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # check_same_thread=False: APScheduler runs the 07:00 digest job in a worker thread but
+    # shares this connection. SQLite serializes writes and our access is low-concurrency, so
+    # this is safe — and without it the scheduled job raises "SQLite objects created in a thread".
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     conn.commit()

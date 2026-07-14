@@ -68,3 +68,23 @@ def test_usage_month_to_date_sums_by_provider():
     assert rows["gemini"]["cost_usd"] == 0.03
     assert rows["gemini"]["calls"] == 2
     assert rows["claude"]["cost_usd"] == 0.10
+
+
+def test_connection_is_usable_from_another_thread():
+    # APScheduler runs the digest job in a worker thread that shares this connection.
+    import threading
+
+    conn = db.connect(":memory:")
+    errors = []
+
+    def worker():
+        try:
+            conn.execute("SELECT 1").fetchone()
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+
+    assert errors == []
