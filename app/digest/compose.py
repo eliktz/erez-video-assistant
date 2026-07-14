@@ -16,10 +16,7 @@ _USD_PER_OUTPUT_TOKEN = 25.0 / 1_000_000
 
 def estimate_cost(usage) -> float:
     """Cost of one Claude call from its usage object."""
-    return (
-        usage.input_tokens * _USD_PER_INPUT_TOKEN
-        + usage.output_tokens * _USD_PER_OUTPUT_TOKEN
-    )
+    return usage.input_tokens * _USD_PER_INPUT_TOKEN + usage.output_tokens * _USD_PER_OUTPUT_TOKEN
 
 
 def _text_of(message) -> str:
@@ -43,18 +40,16 @@ def _ask(client, *, system: str, prompt: str, max_tokens: int):
 
 def reply_about_video(analysis: dict, persona: str, client) -> str:
     """One video's analysis -> a Hebrew chat reply in Erez's bot's voice."""
-    prompt = (
-        "הנה הניתוח הגולמי של הסרטון. תסביר לארז בעברית מה מעניין פה.\n\n"
-        + json.dumps(analysis, ensure_ascii=False, indent=2)
+    prompt = "הנה הניתוח הגולמי של הסרטון. תסביר לארז בעברית מה מעניין פה.\n\n" + json.dumps(
+        analysis, ensure_ascii=False, indent=2
     )
     return _text_of(_ask(client, system=persona, prompt=prompt, max_tokens=2000))
 
 
 def write_digest(items: list[dict], template: str, client) -> str:
     """The morning digest: several analyses -> one Hebrew report."""
-    prompt = (
-        "הנה הסרטונים של הבוקר עם הניתוח של כל אחד.\n\n"
-        + json.dumps(items, ensure_ascii=False, indent=2)
+    prompt = "הנה הסרטונים של הבוקר עם הניתוח של כל אחד.\n\n" + json.dumps(
+        items, ensure_ascii=False, indent=2
     )
     return _text_of(_ask(client, system=template, prompt=prompt, max_tokens=4000))
 

@@ -53,9 +53,7 @@ def test_reply_about_video_returns_hebrew_text():
 def test_write_digest_includes_every_item():
     client = _FakeClient("הדוח של הבוקר")
 
-    out = compose.write_digest(
-        [{"hook": "a"}, {"hook": "b"}], template="כתוב דוח", client=client
-    )
+    out = compose.write_digest([{"hook": "a"}, {"hook": "b"}], template="כתוב דוח", client=client)
 
     assert out == "הדוח של הבוקר"
     prompt = client.messages.calls[0]["messages"][0]["content"]

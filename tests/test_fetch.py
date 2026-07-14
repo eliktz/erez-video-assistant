@@ -11,9 +11,7 @@ def test_download_builds_expected_ytdlp_options():
         captured["opts"] = opts
         return {"duration": 42.0, "_filename": "/tmp/out/vid.mp4"}
 
-    result = fetch.download(
-        "https://tiktok.com/@x/video/1", "/tmp/out", runner=fake_runner
-    )
+    result = fetch.download("https://tiktok.com/@x/video/1", "/tmp/out", runner=fake_runner)
 
     assert result.path == "/tmp/out/vid.mp4"
     assert result.duration_seconds == 42.0

@@ -34,9 +34,7 @@ def upsert_video(conn: sqlite3.Connection, video: dict, now: str) -> str:
 
 
 def get_video(conn: sqlite3.Connection, video_id: str) -> dict | None:
-    row = conn.execute(
-        f"SELECT {_FIELDS} FROM videos WHERE id = ?", (video_id,)
-    ).fetchone()
+    row = conn.execute(f"SELECT {_FIELDS} FROM videos WHERE id = ?", (video_id,)).fetchone()
     return dict(row) if row else None
 
 
@@ -45,9 +43,7 @@ def known_ids(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
     if not ids:
         return set()
     placeholders = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"SELECT id FROM videos WHERE id IN ({placeholders})", ids
-    ).fetchall()
+    rows = conn.execute(f"SELECT id FROM videos WHERE id IN ({placeholders})", ids).fetchall()
     return {r["id"] for r in rows}
 
 
@@ -67,9 +63,7 @@ def save_analysis(
     conn.commit()
 
 
-def get_analysis(
-    conn: sqlite3.Connection, video_id: str, rubric_version: str
-) -> dict | None:
+def get_analysis(conn: sqlite3.Connection, video_id: str, rubric_version: str) -> dict | None:
     row = conn.execute(
         "SELECT payload_json FROM analyses WHERE video_id = ? AND rubric_version = ?",
         (video_id, rubric_version),

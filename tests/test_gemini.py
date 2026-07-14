@@ -35,9 +35,7 @@ def test_analyze_video_parses_json_response():
     sample = Path("tests/fixtures/analysis_sample.json").read_text(encoding="utf-8")
     client = _FakeClient(sample)
 
-    result = gemini.analyze_video(
-        "/tmp/x.mp4", rubric="rubric text", client=client
-    )
+    result = gemini.analyze_video("/tmp/x.mp4", rubric="rubric text", client=client)
 
     assert result["hook"] == "הילד רץ אחרי המשאית"
     assert result["fits_erez_style"] is True
