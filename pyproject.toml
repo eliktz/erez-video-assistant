@@ -1,0 +1,29 @@
+[project]
+name = "erez-video-assistant"
+version = "0.1.0"
+description = "AI assistant for Erez: viral trend digest + video analysis, in Hebrew"
+requires-python = ">=3.12"
+dependencies = [
+    "python-telegram-bot>=21.0,<22",
+    "apscheduler>=3.10,<4",
+    "httpx>=0.27",
+    "yt-dlp>=2025.1.1",
+    "pyyaml>=6.0",
+    "google-genai>=1.0",
+    "anthropic>=0.40",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
