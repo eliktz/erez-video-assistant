@@ -37,7 +37,12 @@ def load_watchlist(path: str = "config/watchlist.yaml") -> Watchlist:
 
 
 def load_settings(path: str = "config/settings.yaml") -> dict:
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Settings in {path} must be a YAML mapping")
+    return data
 
 
 def load_prompt(name: str) -> str:
