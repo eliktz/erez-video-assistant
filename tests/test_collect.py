@@ -17,13 +17,18 @@ class _FakeResponse:
 
 
 class _FakeHttp:
-    def __init__(self, payload):
+    """Returns `payload` for every call, unless `by_url` maps a URL to its own
+    payload — lets one test fake both channels.list and search.list at once."""
+
+    def __init__(self, payload=None, *, by_url=None):
         self._payload = payload
+        self._by_url = by_url or {}
         self.calls = []
 
     def get(self, url, params=None):
         self.calls.append({"url": url, "params": params})
-        return _FakeResponse(self._payload)
+        payload = self._by_url[url] if url in self._by_url else self._payload
+        return _FakeResponse(payload)
 
 
 def test_candidate_as_row_matches_store_schema():
@@ -75,3 +80,57 @@ def test_youtube_source_skips_non_youtube_creators():
     )
 
     assert http.calls == []
+
+
+def test_youtube_source_resolves_a_handle_before_searching():
+    payload = json.loads(Path("tests/fixtures/youtube_search.json").read_text())
+    http = _FakeHttp(
+        by_url={
+            youtube._CHANNELS_URL: {"items": [{"id": "UCxyz"}]},
+            youtube._SEARCH_URL: payload,
+        }
+    )
+    source = youtube.YouTubeSource("KEY", http=http)
+
+    got = source.collect(
+        Watchlist(creators=[Creator("youtube", "@andrejko.epta")], topics=[]),
+        since="2026-07-12T00:00:00Z",
+    )
+
+    assert len(got) == 1
+    channels_call, search_call = http.calls
+    assert channels_call["url"] == youtube._CHANNELS_URL
+    assert channels_call["params"]["forHandle"] == "andrejko.epta"
+    assert search_call["params"]["channelId"] == "UCxyz"
+
+
+def test_youtube_source_skips_channels_lookup_for_a_UC_id():
+    payload = json.loads(Path("tests/fixtures/youtube_search.json").read_text())
+    http = _FakeHttp(payload)
+    source = youtube.YouTubeSource("KEY", http=http)
+
+    got = source.collect(
+        Watchlist(creators=[Creator("youtube", "UCxyz")], topics=[]),
+        since="2026-07-12T00:00:00Z",
+    )
+
+    assert len(got) == 1
+    assert len(http.calls) == 1  # only the search call, no channels.list
+    assert http.calls[0]["url"] == youtube._SEARCH_URL
+
+
+def test_youtube_source_skips_an_unresolvable_handle_without_raising():
+    http = _FakeHttp(
+        by_url={
+            youtube._CHANNELS_URL: {"items": []},
+        }
+    )
+    source = youtube.YouTubeSource("KEY", http=http)
+
+    got = source.collect(
+        Watchlist(creators=[Creator("youtube", "@nobody")], topics=[]),
+        since="2026-07-12T00:00:00Z",
+    )
+
+    assert got == []
+    assert len(http.calls) == 1  # never got to search.list

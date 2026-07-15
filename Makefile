@@ -15,7 +15,7 @@ fix:
 	uv run ruff format .
 
 run:
-	uv run python -m app.main
+	uv run --env-file .env python -m app.main
 
 digest-preview:
 	uv run python -m app.digest.page --from-fixtures

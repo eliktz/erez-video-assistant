@@ -51,6 +51,15 @@ def is_authorized(chat_id: int, allowed_chat_ids) -> bool:
     return chat_id in allowed_chat_ids
 
 
+def month_spend(conn, month: str) -> float:
+    """Everything we have paid this month, across providers."""
+    return sum(row["cost_usd"] for row in usage.month_to_date(conn, month))
+
+
+def over_budget(conn, cap_usd: float, month: str) -> bool:
+    return month_spend(conn, month) >= cap_usd
+
+
 @dataclass
 class Deps:
     """Everything the pipeline needs, injected so tests need no keys and no network."""
@@ -65,6 +74,7 @@ class Deps:
     download: Callable = fetch.download
     analyze: Callable = None
     compose_reply: Callable = None
+    monthly_cap_usd: float = 40.0
 
 
 def _host_is_a_platform(url: str) -> bool:
@@ -113,37 +123,49 @@ def _store_video(deps: Deps, video_id: str, url: str) -> None:
     )
 
 
+def _download_and_analyze(deps: Deps, video_id: str, url: str) -> dict | str:
+    """Returns the analysis dict, or a Hebrew error string on download failure."""
+    try:
+        result = deps.download(url, deps.work_dir)
+    except fetch.FetchError:
+        return "לא הצלחתי להוריד את הסרטון. נסה לשלוח לי את הקובץ עצמו."
+
+    analyze = deps.analyze or gemini.analyze_video
+    try:
+        analysis = analyze(result.path, deps.rubric, deps.gemini_client)
+    finally:
+        # Billed the moment the call returns, even if the reply will not parse.
+        usage.record(
+            deps.conn, "gemini", "analyze_video", 1,
+            gemini.estimate_cost(result.duration_seconds), now=deps.now(),
+        )
+    videos.save_analysis(deps.conn, video_id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
+    return analysis
+
+
 def analyze_url(url: str, *, deps: Deps) -> str:
     """The whole on-demand path. Returns Hebrew text safe to send to Erez."""
     video_id = video_id_from_url(url)
     if video_id is None:
         return "לא זיהיתי את הלינק. שלח לי לינק לרילס, טיקטוק או שורטס."
 
+    if over_budget(deps.conn, deps.monthly_cap_usd, deps.now()[:7]):
+        return "עברנו את תקרת ההוצאה החודשית. תגיד לאליק שיעלה אותה."
+
     _store_video(deps, video_id, url)
 
     analysis = videos.get_analysis(deps.conn, video_id, gemini.RUBRIC_VERSION)
     if analysis is None:
-        try:
-            result = deps.download(url, deps.work_dir)
-        except fetch.FetchError:
-            return "לא הצלחתי להוריד את הסרטון. נסה לשלוח לי את הקובץ עצמו."
-
-        analyze = deps.analyze or gemini.analyze_video
-        analysis = analyze(result.path, deps.rubric, deps.gemini_client)
-        videos.save_analysis(deps.conn, video_id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
-        usage.record(
-            deps.conn,
-            "gemini",
-            "analyze_video",
-            1,
-            gemini.estimate_cost(result.duration_seconds),
-            now=deps.now(),
-        )
+        analysis = _download_and_analyze(deps, video_id, url)
+        if isinstance(analysis, str):
+            return analysis
 
     from app.digest import compose
 
     compose_reply = deps.compose_reply or compose.reply_about_video
-    return compose_reply(analysis, deps.persona, deps.claude_client)
+    written = compose_reply(analysis, deps.persona, deps.claude_client)
+    usage.record(deps.conn, "claude", "reply_about_video", 1, written.cost_usd, now=deps.now())
+    return written.text
 
 
 def costs_message(conn, *, month: str) -> str:

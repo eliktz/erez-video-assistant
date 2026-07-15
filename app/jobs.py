@@ -7,6 +7,7 @@ pages Elik.
 
 import logging
 
+from app import bot
 from app.analyze import gemini
 from app.digest import page, rank
 from app.store import usage, videos
@@ -36,46 +37,30 @@ def _analyze_candidate(candidate, *, deps) -> dict | None:
         return None
 
     analyze = deps.analyze or gemini.analyze_video
-    analysis = analyze(result.path, deps.rubric, deps.gemini_client)
+    try:
+        analysis = analyze(result.path, deps.rubric, deps.gemini_client)
+    finally:
+        # Billed the moment the call returns, even if the reply will not parse.
+        usage.record(
+            deps.conn, "gemini", "analyze_video", 1,
+            gemini.estimate_cost(result.duration_seconds), now=deps.now(),
+        )
     videos.save_analysis(deps.conn, candidate.id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
-    usage.record(
-        deps.conn,
-        "gemini",
-        "analyze_video",
-        1,
-        gemini.estimate_cost(result.duration_seconds),
-        now=deps.now(),
-    )
     return analysis
 
 
-def run_digest(
-    *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str
-) -> str | None:
-    """Collect, rank, analyze, compose, publish, send. Returns the body, or None."""
-    for_date = now[:10]
-    candidates = _collect_all(sources, watchlist, since=_since(now, settings))
-    picked = rank.top_n(candidates, n=settings["digest"]["max_videos"], now=now)
-
+def _build_items(picked, *, deps, now: str) -> list[dict]:
     items = []
     for candidate in picked:
         videos.upsert_video(deps.conn, candidate.as_row(), now=now)
         analysis = _analyze_candidate(candidate, deps=deps)
         if analysis:
             items.append({**candidate.as_row(), "analysis": analysis})
+    return items
 
-    if not items:
-        notifier.send("בוקר טוב ☕ לא מצאתי הבוקר משהו ששווה לדבר עליו. אליק יבדוק.")
-        log.warning("Digest for %s had no analyzable items", for_date)
-        return None
 
-    body = compose_digest(items, template, deps.claude_client)
-    html_path = page.write(page.render(body, items, for_date=for_date), "web/out", for_date)
-
-    # Send first: if delivery raises, sent_at is never written, so the 07:30 dead-man's-switch
-    # fires instead of silently believing the digest went out.
-    notifier.send(body)
-    deps.conn.execute(
+def _save_digest(conn, *, for_date: str, body: str, html_path: str, now: str) -> None:
+    conn.execute(
         """
         INSERT INTO digests (for_date, body_he, html_path, sent_at, created_at)
         VALUES (?, ?, ?, ?, ?)
@@ -85,7 +70,36 @@ def run_digest(
         """,
         (for_date, body, html_path, now, now),
     )
-    deps.conn.commit()
+    conn.commit()
+
+
+def run_digest(
+    *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str
+) -> str | None:
+    """Collect, rank, analyze, compose, publish, send. Returns the body, or None."""
+    if bot.over_budget(deps.conn, deps.monthly_cap_usd, now[:7]):
+        notifier.send("עברנו את תקרת ההוצאה החודשית. הדוח של הבוקר לא ירוץ עד שאליק יעלה אותה.")
+        return None
+
+    for_date = now[:10]
+    candidates = _collect_all(sources, watchlist, since=_since(now, settings))
+    picked = rank.top_n(candidates, n=settings["digest"]["max_videos"], now=now)
+    items = _build_items(picked, deps=deps, now=now)
+
+    if not items:
+        notifier.send("בוקר טוב ☕ לא מצאתי הבוקר משהו ששווה לדבר עליו. אליק יבדוק.")
+        log.warning("Digest for %s had no analyzable items", for_date)
+        return None
+
+    written = compose_digest(items, template, deps.claude_client)
+    body = written.text
+    usage.record(deps.conn, "claude", "write_digest", 1, written.cost_usd, now=now)
+    html_path = page.write(page.render(body, items, for_date=for_date), "web/out", for_date)
+
+    # Send first: if delivery raises, sent_at is never written, so the 07:30 dead-man's-switch
+    # fires instead of silently believing the digest went out.
+    notifier.send(body)
+    _save_digest(deps.conn, for_date=for_date, body=body, html_path=html_path, now=now)
     return body
 
 

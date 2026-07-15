@@ -1,5 +1,6 @@
 from app import jobs
 from app.collect.base import Candidate
+from app.digest import compose
 from app.store import db
 
 NOW = "2026-07-14T04:00:00Z"
@@ -79,7 +80,7 @@ def test_run_digest_sends_and_records(tmp_path):
         notifier=notifier,
         settings=_settings(),
         watchlist=None,
-        compose_digest=lambda items, template, client: "דוח הבוקר",
+        compose_digest=lambda items, template, client: compose.Written("דוח הבוקר", 0.0),
         template="t",
         now=NOW,
     )
@@ -100,7 +101,7 @@ def test_run_digest_survives_a_dead_source(tmp_path):
         notifier=notifier,
         settings=_settings(),
         watchlist=None,
-        compose_digest=lambda items, template, client: "דוח",
+        compose_digest=lambda items, template, client: compose.Written("דוח", 0.0),
         template="t",
         now=NOW,
     )
@@ -118,7 +119,7 @@ def test_run_digest_says_so_when_nothing_found(tmp_path):
         notifier=notifier,
         settings=_settings(),
         watchlist=None,
-        compose_digest=lambda items, template, client: "unused",
+        compose_digest=lambda items, template, client: compose.Written("unused", 0.0),
         template="t",
         now=NOW,
     )
@@ -167,7 +168,7 @@ def test_run_digest_leaves_sent_unset_when_delivery_fails(tmp_path):
             notifier=_BoomNotifier(),
             settings=_settings(),
             watchlist=None,
-            compose_digest=lambda items, template, client: "דוח",
+            compose_digest=lambda items, template, client: compose.Written("דוח", 0.0),
             template="t",
             now=NOW,
         )

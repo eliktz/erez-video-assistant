@@ -1,3 +1,5 @@
+import pytest
+
 from app.digest import compose
 
 
@@ -44,7 +46,8 @@ def test_reply_about_video_returns_hebrew_text():
         {"hook": "x", "why_it_worked": "y"}, persona="תדבר בעברית", client=client
     )
 
-    assert out == "ההוק פה זה הרגע לפני ההפתעה."
+    assert out.text == "ההוק פה זה הרגע לפני ההפתעה."
+    assert out.cost_usd == pytest.approx(0.0175)
     call = client.messages.calls[0]
     assert call["model"] == "claude-opus-4-8"
     assert call["system"] == "תדבר בעברית"
@@ -55,7 +58,7 @@ def test_write_digest_includes_every_item():
 
     out = compose.write_digest([{"hook": "a"}, {"hook": "b"}], template="כתוב דוח", client=client)
 
-    assert out == "הדוח של הבוקר"
+    assert out.text == "הדוח של הבוקר"
     prompt = client.messages.calls[0]["messages"][0]["content"]
     assert '"a"' in prompt and '"b"' in prompt
 

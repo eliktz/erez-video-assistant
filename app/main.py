@@ -37,6 +37,7 @@ def build_deps() -> bot.Deps:
         rubric=config.load_prompt("analysis_rubric"),
         persona=config.load_prompt("bot_persona"),
         work_dir="/tmp/erez-videos",
+        monthly_cap_usd=config.load_settings()["cost"]["monthly_cap_usd"],
     )
 
 

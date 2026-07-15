@@ -4,12 +4,17 @@ Quota: 100 search.list calls/day, which is far more than one creator list needs.
 This source keeps working even when a paid scraper breaks.
 """
 
+import logging
+
 import httpx
 
 from app.collect.base import Candidate
 from app.config import Watchlist
 
+log = logging.getLogger(__name__)
+
 _SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
+_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
 
 
 class YouTubeSource:
@@ -18,13 +23,37 @@ class YouTubeSource:
     def __init__(self, api_key: str, *, http: httpx.Client | None = None):
         self._api_key = api_key
         self._http = http or httpx.Client(timeout=30)
+        self._channel_id_cache: dict[str, str | None] = {}
 
-    def _search_channel(self, handle: str, since: str) -> list[Candidate]:
+    def _resolve_channel_id(self, handle: str) -> str | None:
+        """Erez's watchlist documents `handle` as the @name, not a UC... id.
+
+        Accept both: a UC... id is used as-is; anything else is resolved once
+        via channels.list and cached, so one creator costs one lookup per run.
+        """
+        if handle.startswith("UC"):
+            return handle
+        if handle in self._channel_id_cache:
+            return self._channel_id_cache[handle]
+
+        response = self._http.get(
+            _CHANNELS_URL,
+            params={"key": self._api_key, "forHandle": handle.lstrip("@"), "part": "id"},
+        )
+        response.raise_for_status()
+        items = response.json().get("items", [])
+        channel_id = items[0]["id"] if items else None
+        if channel_id is None:
+            log.warning("Could not resolve YouTube handle %r to a channel; skipping it", handle)
+        self._channel_id_cache[handle] = channel_id
+        return channel_id
+
+    def _search_channel(self, channel_id: str, since: str) -> list[Candidate]:
         response = self._http.get(
             _SEARCH_URL,
             params={
                 "key": self._api_key,
-                "channelId": handle,
+                "channelId": channel_id,
                 "part": "snippet",
                 "type": "video",
                 "order": "date",
@@ -58,5 +87,8 @@ class YouTubeSource:
         for creator in watchlist.creators:
             if creator.platform != "youtube":
                 continue
-            found.extend(self._search_channel(creator.handle, since))
+            channel_id = self._resolve_channel_id(creator.handle)
+            if channel_id is None:
+                continue
+            found.extend(self._search_channel(channel_id, since))
         return found

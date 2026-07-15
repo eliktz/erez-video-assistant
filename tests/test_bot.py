@@ -1,12 +1,15 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app import bot
 from app.analyze import fetch
+from app.digest import compose
 from app.store import db, usage
 
 
-def _deps(tmp_path, *, analysis=None, reply="ניתוח בעברית", fail=False):
+def _deps(tmp_path, *, analysis=None, reply="ניתוח בעברית", fail=False, analyze=None):
     sample = analysis or json.loads(
         Path("tests/fixtures/analysis_sample.json").read_text(encoding="utf-8")
     )
@@ -25,8 +28,8 @@ def _deps(tmp_path, *, analysis=None, reply="ניתוח בעברית", fail=Fals
         work_dir=str(tmp_path),
         now=lambda: "2026-07-14T05:00:00Z",
         download=fake_download,
-        analyze=lambda path, rubric, client: sample,
-        compose_reply=lambda analysis, persona, client: reply,
+        analyze=analyze or (lambda path, rubric, client: sample),
+        compose_reply=lambda analysis, persona, client: compose.Written(reply, 0.0),
     )
 
 
@@ -79,6 +82,59 @@ def test_video_id_from_url_rejects_lookalike_hosts():
     assert bot.video_id_from_url("file:///etc/passwd#youtube.com/shorts/abc") is None
     # ...but the real thing still works.
     assert bot.video_id_from_url("https://www.youtube.com/shorts/abc") == "youtube:abc"
+
+
+def test_analyze_url_bills_the_claude_call(tmp_path):
+    deps = _deps(tmp_path)
+    deps.compose_reply = lambda analysis, persona, client: compose.Written("תשובה", 0.0175)
+
+    bot.analyze_url("https://www.instagram.com/reel/DY2QmhAoF-z/", deps=deps)
+
+    rows = deps.conn.execute(
+        "SELECT * FROM provider_usage WHERE provider='claude'"
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["cost_usd"] == pytest.approx(0.0175)
+
+
+def test_analyze_url_bills_gemini_even_when_the_reply_wont_parse(tmp_path):
+    def boom_analyze(path, rubric, client):
+        raise ValueError("Gemini returned non-JSON")
+
+    deps = _deps(tmp_path, analyze=boom_analyze)
+
+    with pytest.raises(ValueError):
+        bot.analyze_url("https://www.instagram.com/reel/DY2QmhAoF-z/", deps=deps)
+
+    rows = deps.conn.execute(
+        "SELECT * FROM provider_usage WHERE provider='gemini'"
+    ).fetchall()
+    assert len(rows) == 1
+
+
+def test_over_budget_true_when_spend_reaches_the_cap():
+    conn = db.connect(":memory:")
+    usage.record(conn, "gemini", "analyze_video", 1, 40.0, now="2026-07-14T05:00:00Z")
+
+    assert bot.over_budget(conn, 40.0, "2026-07") is True
+
+
+def test_over_budget_false_when_under_the_cap():
+    conn = db.connect(":memory:")
+    usage.record(conn, "gemini", "analyze_video", 1, 10.0, now="2026-07-14T05:00:00Z")
+
+    assert bot.over_budget(conn, 40.0, "2026-07") is False
+
+
+def test_analyze_url_refuses_and_bills_nothing_when_over_budget(tmp_path):
+    deps = _deps(tmp_path)
+    usage.record(deps.conn, "gemini", "analyze_video", 1, 40.0, now="2026-07-14T05:00:00Z")
+
+    out = bot.analyze_url("https://www.instagram.com/reel/DY2QmhAoF-z/", deps=deps)
+
+    assert "תקרת ההוצאה" in out
+    rows_before = usage.month_to_date(deps.conn, "2026-07")
+    assert sum(r["calls"] for r in rows_before) == 1  # only the seeded row above
 
 
 def test_is_authorized_allows_only_listed_chats():

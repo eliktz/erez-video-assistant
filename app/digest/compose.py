@@ -6,6 +6,7 @@ digest — which would kill the project. That is why a second vendor is here.
 """
 
 import json
+from dataclasses import dataclass
 
 MODEL = "claude-opus-4-8"
 
@@ -38,20 +39,33 @@ def _ask(client, *, system: str, prompt: str, max_tokens: int):
     )
 
 
-def reply_about_video(analysis: dict, persona: str, client) -> str:
+@dataclass(frozen=True)
+class Written:
+    """What Claude wrote, and what that call cost — so the caller can record the spend."""
+
+    text: str
+    cost_usd: float
+
+
+def _write(client, *, system: str, prompt: str, max_tokens: int) -> Written:
+    message = _ask(client, system=system, prompt=prompt, max_tokens=max_tokens)
+    return Written(text=_text_of(message), cost_usd=estimate_cost(message.usage))
+
+
+def reply_about_video(analysis: dict, persona: str, client) -> Written:
     """One video's analysis -> a Hebrew chat reply in Erez's bot's voice."""
     prompt = "הנה הניתוח הגולמי של הסרטון. תסביר לארז בעברית מה מעניין פה.\n\n" + json.dumps(
         analysis, ensure_ascii=False, indent=2
     )
-    return _text_of(_ask(client, system=persona, prompt=prompt, max_tokens=2000))
+    return _write(client, system=persona, prompt=prompt, max_tokens=2000)
 
 
-def write_digest(items: list[dict], template: str, client) -> str:
+def write_digest(items: list[dict], template: str, client) -> Written:
     """The morning digest: several analyses -> one Hebrew report."""
     prompt = "הנה הסרטונים של הבוקר עם הניתוח של כל אחד.\n\n" + json.dumps(
         items, ensure_ascii=False, indent=2
     )
-    return _text_of(_ask(client, system=template, prompt=prompt, max_tokens=4000))
+    return _write(client, system=template, prompt=prompt, max_tokens=4000)
 
 
 def build_client(api_key: str):
