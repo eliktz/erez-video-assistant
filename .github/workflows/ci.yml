@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
 
+# gitleaks lists the PR's commits to scan them, which needs pull-requests: read.
+# Without this the default token is too restricted and the scan 403s.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
