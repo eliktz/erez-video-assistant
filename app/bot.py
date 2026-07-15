@@ -9,9 +9,23 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from app.analyze import fetch, gemini
 from app.store import usage, videos
+
+# Only these hosts are real video platforms. Anything else is not ours to fetch.
+_ALLOWED_HOSTS = {
+    "instagram.com",
+    "www.instagram.com",
+    "tiktok.com",
+    "www.tiktok.com",
+    "vm.tiktok.com",
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+}
 
 _URL_PATTERNS = [
     (re.compile(r"instagram\.com/(?:reel|p)/([A-Za-z0-9_-]+)"), "instagram"),
@@ -53,8 +67,24 @@ class Deps:
     compose_reply: Callable = None
 
 
+def _host_is_a_platform(url: str) -> bool:
+    """Is this really Instagram/TikTok/YouTube, or just a URL shaped like one?"""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    return (parsed.hostname or "").lower() in _ALLOWED_HOSTS
+
+
 def video_id_from_url(url: str) -> str | None:
-    """Stable id across tracking params: 'instagram:DY2QmhAoF-z'."""
+    """Stable id across tracking params: 'instagram:DY2QmhAoF-z'.
+
+    The host is checked first, on purpose. The patterns below match anywhere in the
+    string, so 'http://127.0.0.1:6379/youtube.com/shorts/x' looks like a Short — and
+    we hand the ORIGINAL url to yt-dlp, which would happily fetch it. Checking the
+    host keeps us from being told to make requests to somewhere we should not.
+    """
+    if not _host_is_a_platform(url):
+        return None
     for pattern, platform in _URL_PATTERNS:
         match = pattern.search(url)
         if match:

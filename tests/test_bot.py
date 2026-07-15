@@ -71,6 +71,16 @@ def test_video_id_from_url_is_stable():
     assert a == b == "instagram:DY2QmhAoF-z"
 
 
+def test_video_id_from_url_rejects_lookalike_hosts():
+    # The patterns match anywhere in the string and we hand the ORIGINAL url to
+    # yt-dlp, so a platform-shaped path on a foreign host must not be accepted.
+    assert bot.video_id_from_url("http://127.0.0.1:6379/youtube.com/shorts/abc") is None
+    assert bot.video_id_from_url("https://evil.example/instagram.com/reel/abc") is None
+    assert bot.video_id_from_url("file:///etc/passwd#youtube.com/shorts/abc") is None
+    # ...but the real thing still works.
+    assert bot.video_id_from_url("https://www.youtube.com/shorts/abc") == "youtube:abc"
+
+
 def test_is_authorized_allows_only_listed_chats():
     # The bot answers whoever messages it; only this check keeps strangers from
     # spending our Gemini/Claude budget and reading /costs.

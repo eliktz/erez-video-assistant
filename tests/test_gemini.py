@@ -55,3 +55,42 @@ def test_estimate_cost_is_cents_per_video():
     # A 60s video is roughly 15,780 input tokens at $0.30/1M.
     cost = gemini.estimate_cost(60)
     assert 0.001 < cost < 0.05
+
+
+class _FakeFile:
+    """Shaped after the real SDK: uploads come back PROCESSING, not ready."""
+
+    def __init__(self, state, name="files/abc"):
+        self.state = type("_State", (), {"name": state})()
+        self.name = name
+
+
+def test_wait_until_active_polls_until_gemini_finishes_processing():
+    # A real upload returns PROCESSING; calling generate_content on it is a 400.
+    processing, active = _FakeFile("PROCESSING"), _FakeFile("ACTIVE")
+
+    class _Files:
+        def __init__(self):
+            self.gets = 0
+
+        def get(self, name):
+            self.gets += 1
+            return active
+
+    class _Client:
+        def __init__(self):
+            self.files = _Files()
+
+    client = _Client()
+
+    out = gemini._wait_until_active(client, processing, sleep=lambda _s: None)
+
+    assert gemini._state_of(out) == "ACTIVE"
+    assert client.files.gets == 1
+
+
+def test_wait_until_active_raises_when_gemini_cannot_process():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="could not process"):
+        gemini._wait_until_active(object(), _FakeFile("FAILED"), sleep=lambda _s: None)
