@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "id": { "videoId": "abc123" },
+      "snippet": {
+        "publishedAt": "2026-07-13T10:00:00Z",
+        "channelTitle": "Kindness Daily",
+        "title": "He didn't know he was being filmed"
+      }
+    }
+  ]
+}

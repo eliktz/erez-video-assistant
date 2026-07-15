@@ -1,0 +1,14 @@
+# הגדרות מערכת. אם משהו פה לא ברור — תשאל את אליק.
+
+digest:
+  hour: 7 # שעה בבוקר (שעון ישראל)
+  minute: 0
+  max_videos: 10 # כמה סרטונים לנתח בכל בוקר
+  deadman_minute: 30 # אם לא יצא דוח עד 07:30 — תתריע לאליק
+
+collect:
+  lookback_hours: 48 # כמה אחורה לחפש סרטונים חדשים
+  max_per_creator: 5
+
+cost:
+  monthly_cap_usd: 40 # החודש הראשון
