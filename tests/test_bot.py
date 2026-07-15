@@ -69,3 +69,13 @@ def test_video_id_from_url_is_stable():
     a = bot.video_id_from_url("https://www.instagram.com/reel/DY2QmhAoF-z/")
     b = bot.video_id_from_url("https://www.instagram.com/reel/DY2QmhAoF-z/?igsh=xyz")
     assert a == b == "instagram:DY2QmhAoF-z"
+
+
+def test_is_authorized_allows_only_listed_chats():
+    # The bot answers whoever messages it; only this check keeps strangers from
+    # spending our Gemini/Claude budget and reading /costs.
+    allowed = {111, 222}
+
+    assert bot.is_authorized(111, allowed) is True
+    assert bot.is_authorized(222, allowed) is True
+    assert bot.is_authorized(999, allowed) is False

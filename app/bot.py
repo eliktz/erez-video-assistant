@@ -27,6 +27,16 @@ def utc_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def is_authorized(chat_id: int, allowed_chat_ids) -> bool:
+    """Only Erez (and Elik, for admin) may use the bot. Everyone else is ignored.
+
+    A Telegram bot answers whoever messages it. Without this check, anyone who
+    finds the bot's handle could send it links and spend our Gemini and Claude
+    budget — and read our spend with /costs.
+    """
+    return chat_id in allowed_chat_ids
+
+
 @dataclass
 class Deps:
     """Everything the pipeline needs, injected so tests need no keys and no network."""

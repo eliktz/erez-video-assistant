@@ -18,6 +18,16 @@ from app.store import db
 logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
+# httpx logs every request URL at INFO — and our secrets live IN those URLs: the Telegram
+# token as a path segment (.../bot<TOKEN>/sendMessage) and the YouTube key as ?key=<KEY>.
+# At INFO they would be written to Railway's logs in cleartext, undoing "secrets only in env".
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# The digest promise is "07:00 Erez's time". APScheduler only applies the scheduler's timezone
+# to triggers it builds itself; a CronTrigger constructed here would default to the machine's
+# local zone (UTC on Railway -> 10:00 in Israel). So every trigger names the zone explicitly.
+TZ = "Asia/Jerusalem"
+
 
 def build_deps() -> bot.Deps:
     return bot.Deps(
@@ -30,7 +40,26 @@ def build_deps() -> bot.Deps:
     )
 
 
-async def on_start(update: Update, _ctx) -> None:
+def allowed_chat_ids() -> set[int]:
+    """The only chats the bot answers: Erez, and Elik for admin."""
+    return {
+        int(config.env("TELEGRAM_CHAT_ID_EREZ")),
+        int(config.env("TELEGRAM_CHAT_ID_ADMIN")),
+    }
+
+
+def _authorized(update: Update, ctx) -> bool:
+    """Deny before doing any paid work. Silent: a stranger gets no reply at all."""
+    chat = update.effective_chat
+    if chat is not None and bot.is_authorized(chat.id, ctx.bot_data["allowed_chat_ids"]):
+        return True
+    log.warning("Ignoring update from unauthorized chat %s", chat.id if chat else "unknown")
+    return False
+
+
+async def on_start(update: Update, ctx) -> None:
+    if not _authorized(update, ctx):
+        return
     await update.message.reply_text(
         "היי ארז 👋\nשלח לי לינק לרילס/טיקטוק/שורטס ואני אנתח לך אותו.\n"
         "כל בוקר ב-7:00 תקבל ממני דוח טרנדים."
@@ -40,11 +69,15 @@ async def on_start(update: Update, _ctx) -> None:
 async def on_costs(update: Update, ctx) -> None:
     from datetime import datetime
 
+    if not _authorized(update, ctx):
+        return
     month = datetime.now(UTC).strftime("%Y-%m")
     await update.message.reply_text(bot.costs_message(ctx.bot_data["deps"].conn, month=month))
 
 
 async def on_message(update: Update, ctx) -> None:
+    if not _authorized(update, ctx):
+        return
     match = bot.URL_RE.search(update.message.text or "")
     if not match:
         await update.message.reply_text("שלח לי לינק לסרטון ואני אנתח אותו.")
@@ -62,7 +95,7 @@ def start_scheduler(deps: bot.Deps) -> None:
     admin = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_ADMIN"))
     sources = [YouTubeSource(config.env("YOUTUBE_API_KEY"))]
 
-    scheduler = BackgroundScheduler(timezone="Asia/Jerusalem")
+    scheduler = BackgroundScheduler(timezone=TZ)
 
     def _digest_job() -> None:
         jobs.run_digest(
@@ -86,25 +119,37 @@ def start_scheduler(deps: bot.Deps) -> None:
 
     scheduler.add_job(
         _digest_job,
-        CronTrigger(hour=settings["digest"]["hour"], minute=settings["digest"]["minute"]),
+        CronTrigger(
+            hour=settings["digest"]["hour"], minute=settings["digest"]["minute"], timezone=TZ
+        ),
         id="daily_digest",
     )
     scheduler.add_job(
         _deadman_job,
-        CronTrigger(hour=settings["digest"]["hour"], minute=settings["digest"]["deadman_minute"]),
+        CronTrigger(
+            hour=settings["digest"]["hour"],
+            minute=settings["digest"]["deadman_minute"],
+            timezone=TZ,
+        ),
         id="deadman",
     )
     scheduler.start()
-    log.info("Scheduler started: digest at %02d:00 Asia/Jerusalem", settings["digest"]["hour"])
+    log.info("Scheduler started: digest at %02d:00 %s", settings["digest"]["hour"], TZ)
 
 
 def main() -> None:
     app = Application.builder().token(config.env("TELEGRAM_BOT_TOKEN")).build()
     app.bot_data["deps"] = build_deps()
-    app.add_handler(CommandHandler("start", on_start))
-    app.add_handler(CommandHandler("costs", on_costs))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
-    log.info("Bot starting (long polling)")
+    allowed = allowed_chat_ids()
+    app.bot_data["allowed_chat_ids"] = allowed
+
+    # Gate every handler at registration AND again inside each callback (_authorized).
+    # Either alone would do; both means a new handler cannot silently be left open.
+    only_us = filters.Chat(chat_id=allowed)
+    app.add_handler(CommandHandler("start", on_start, filters=only_us))
+    app.add_handler(CommandHandler("costs", on_costs, filters=only_us))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & only_us, on_message))
+    log.info("Bot starting (long polling); answering %d authorized chat(s)", len(allowed))
     start_scheduler(app.bot_data["deps"])
     app.run_polling()
 
