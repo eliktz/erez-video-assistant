@@ -1,1 +1,1 @@
-worker: python -m app.main
+worker: uv run python -m app.main
