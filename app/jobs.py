@@ -91,9 +91,9 @@ def run_digest(
         log.warning("Digest for %s had no analyzable items", for_date)
         return None
 
-    written = compose_digest(items, template, deps.claude_client)
+    written = compose_digest(items, template, deps.gemini_client)
     body = written.text
-    usage.record(deps.conn, "claude", "write_digest", 1, written.cost_usd, now=now)
+    usage.record(deps.conn, "gemini", "write_digest", 1, written.cost_usd, now=now)
     html_path = page.write(page.render(body, items, for_date=for_date), "web/out", for_date)
 
     # Send first: if delivery raises, sent_at is never written, so the 07:30 dead-man's-switch

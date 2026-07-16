@@ -33,7 +33,6 @@ def build_deps() -> bot.Deps:
     return bot.Deps(
         conn=db.connect(config.env("DB_PATH", "data/erez.db")),
         gemini_client=gemini.build_client(config.env("GEMINI_API_KEY")),
-        claude_client=compose.build_client(config.env("ANTHROPIC_API_KEY")),
         rubric=config.load_prompt("analysis_rubric"),
         persona=config.load_prompt("bot_persona"),
         work_dir="/tmp/erez-videos",
@@ -81,7 +80,10 @@ async def on_message(update: Update, ctx) -> None:
         return
     match = bot.URL_RE.search(update.message.text or "")
     if not match:
-        await update.message.reply_text("שלח לי לינק לסרטון ואני אנתח אותו.")
+        # In the group, Erez and Elik also just talk. Only nag for a link in a private
+        # chat; in a group, stay silent unless there is actually a URL to analyze.
+        if update.effective_chat.type == "private":
+            await update.message.reply_text("שלח לי לינק לסרטון ואני אנתח אותו.")
         return
     await update.message.reply_text("רגע, מנתח... 🎬")
     reply = bot.analyze_url(match.group(0), deps=ctx.bot_data["deps"])

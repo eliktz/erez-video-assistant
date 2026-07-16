@@ -4,42 +4,34 @@ from app.digest import compose
 
 
 class _FakeUsage:
-    input_tokens = 1000
-    output_tokens = 500
-    cache_read_input_tokens = 0
-    cache_creation_input_tokens = 0
+    prompt_token_count = 1000
+    candidates_token_count = 500
 
 
-class _FakeBlock:
-    type = "text"
-
+class _FakeResponse:
     def __init__(self, text):
         self.text = text
+        self.usage_metadata = _FakeUsage()
 
 
-class _FakeMessage:
-    def __init__(self, text):
-        self.content = [_FakeBlock(text)]
-        self.usage = _FakeUsage()
-        self.stop_reason = "end_turn"
-
-
-class _FakeMessages:
+class _FakeModels:
     def __init__(self, text):
         self._text = text
         self.calls = []
 
-    def create(self, **kwargs):
+    def generate_content(self, **kwargs):
         self.calls.append(kwargs)
-        return _FakeMessage(self._text)
+        return _FakeResponse(self._text)
 
 
 class _FakeClient:
+    """Shaped after google-genai: client.models.generate_content -> resp.text/.usage_metadata."""
+
     def __init__(self, text):
-        self.messages = _FakeMessages(text)
+        self.models = _FakeModels(text)
 
 
-def test_reply_about_video_returns_hebrew_text():
+def test_reply_about_video_returns_hebrew_and_cost():
     client = _FakeClient("ההוק פה זה הרגע לפני ההפתעה.")
 
     out = compose.reply_about_video(
@@ -47,10 +39,10 @@ def test_reply_about_video_returns_hebrew_text():
     )
 
     assert out.text == "ההוק פה זה הרגע לפני ההפתעה."
-    assert out.cost_usd == pytest.approx(0.0175)
-    call = client.messages.calls[0]
-    assert call["model"] == "claude-opus-4-8"
-    assert call["system"] == "תדבר בעברית"
+    assert out.cost_usd == pytest.approx(0.00155)  # 1000*0.30/1M + 500*2.50/1M
+    call = client.models.calls[0]
+    assert call["model"] == "gemini-3.5-flash"
+    assert "תדבר בעברית" in call["contents"][0]  # persona rides in as the system preamble
 
 
 def test_write_digest_includes_every_item():
@@ -59,10 +51,10 @@ def test_write_digest_includes_every_item():
     out = compose.write_digest([{"hook": "a"}, {"hook": "b"}], template="כתוב דוח", client=client)
 
     assert out.text == "הדוח של הבוקר"
-    prompt = client.messages.calls[0]["messages"][0]["content"]
+    prompt = client.models.calls[0]["contents"][0]
     assert '"a"' in prompt and '"b"' in prompt
 
 
-def test_estimate_cost_uses_opus_rates():
-    # $5/1M in, $25/1M out -> 1000 in + 500 out = 0.005 + 0.0125
-    assert abs(compose.estimate_cost(_FakeUsage()) - 0.0175) < 1e-6
+def test_estimate_cost_uses_gemini_rates():
+    # 1000 in * 0.30/1M + 500 out * 2.50/1M = 0.0003 + 0.00125 = 0.00155
+    assert abs(compose.estimate_cost(_FakeUsage()) - 0.00155) < 1e-9

@@ -66,7 +66,6 @@ class Deps:
 
     conn: object
     gemini_client: object
-    claude_client: object
     rubric: str
     persona: str
     work_dir: str
@@ -163,8 +162,8 @@ def analyze_url(url: str, *, deps: Deps) -> str:
     from app.digest import compose
 
     compose_reply = deps.compose_reply or compose.reply_about_video
-    written = compose_reply(analysis, deps.persona, deps.claude_client)
-    usage.record(deps.conn, "claude", "reply_about_video", 1, written.cost_usd, now=deps.now())
+    written = compose_reply(analysis, deps.persona, deps.gemini_client)
+    usage.record(deps.conn, "gemini", "reply_about_video", 1, written.cost_usd, now=deps.now())
     return written.text
 
 
