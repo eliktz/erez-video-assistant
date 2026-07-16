@@ -7,7 +7,11 @@ Roughly half a cent per 60-second video.
 import json
 import time
 
-MODEL = "gemini-2.5-flash"
+# gemini-2.5-flash was retired for new API keys (it 404s: "no longer available to new users").
+# gemini-3.5-flash is the current cheap flash that ingests whole video and handles Hebrew well —
+# verified live on 2026-07-16 against a real reel. If this ever 404s, list live models with
+# `client.models.list()` and pick a current *-flash that supports generateContent.
+MODEL = "gemini-3.5-flash"
 RUBRIC_VERSION = "v1"
 
 # Gemini accepts a video upload instantly, then processes it in the background. Calling

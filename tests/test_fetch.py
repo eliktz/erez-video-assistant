@@ -35,3 +35,26 @@ def test_download_rejects_missing_duration():
 
     with pytest.raises(fetch.FetchError, match="duration"):
         fetch.download("https://x.com/1", "/tmp/out", runner=runner)
+
+
+def test_download_reads_real_ytdlp_filepath_shape():
+    # Real yt-dlp does NOT set _filename; it reports the saved file under
+    # requested_downloads[].filepath. (The spike proved the old code crashed here.)
+    def runner(url, opts):
+        return {
+            "duration": 60.0,
+            "requested_downloads": [{"filepath": "/tmp/out/abc.mp4"}],
+        }
+
+    result = fetch.download("https://www.youtube.com/shorts/abc", "/tmp/out", runner=runner)
+
+    assert result.path == "/tmp/out/abc.mp4"
+    assert result.duration_seconds == 60.0
+
+
+def test_download_raises_when_no_filepath_anywhere():
+    def runner(url, opts):
+        return {"duration": 12.0}  # downloaded, but no path reported
+
+    with pytest.raises(fetch.FetchError, match="saved file"):
+        fetch.download("https://x.com/1", "/tmp/out", runner=runner)

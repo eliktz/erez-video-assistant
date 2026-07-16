@@ -44,7 +44,7 @@ Optimize every change for a beginner being able to read it later.
 ## Stack
 
 Python 3.12 · uv · python-telegram-bot (long polling) · APScheduler · SQLite · Railway.
-Gemini `gemini-2.5-flash` analyzes video. Claude `claude-opus-4-8` writes Hebrew prose.
+Gemini `gemini-3.5-flash` analyzes video. Claude `claude-opus-4-8` writes Hebrew prose.
 
 Why two models: Gemini is the only cheap model that ingests whole video. Claude writes the
 Hebrew Erez actually wants to read — and if the digest is boring, he stops opening it, which
