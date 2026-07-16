@@ -27,10 +27,29 @@ class Written:
 
 
 def estimate_cost(usage) -> float:
-    """Cost of one Gemini text call from its usage_metadata."""
+    """Cost of one Gemini text call from its usage_metadata.
+
+    A reasoning model bills its "thinking" tokens at the output rate, and they arrive in a
+    separate thoughts_token_count. Miss them and /costs (and the $40 cap) understate the bill.
+    """
     in_tokens = getattr(usage, "prompt_token_count", 0) or 0
-    out_tokens = getattr(usage, "candidates_token_count", 0) or 0
+    out_tokens = (getattr(usage, "candidates_token_count", 0) or 0) + (
+        getattr(usage, "thoughts_token_count", 0) or 0
+    )
     return in_tokens * _USD_PER_INPUT_TOKEN + out_tokens * _USD_PER_OUTPUT_TOKEN
+
+
+# What Erez sees if Gemini returns no usable text (a safety block or a truncated reply).
+_NO_TEXT = "לא הצלחתי לנסח תשובה על הסרטון הזה. נסה שוב, או שלח סרטון אחר."
+
+
+def _text_of(response) -> str:
+    """Gemini's .text is None (or raises) when a response carries no text part. Never let
+    that reach Erez as an empty message — which python-telegram-bot rejects anyway."""
+    try:
+        return (response.text or "").strip()
+    except Exception:
+        return ""
 
 
 def _write(client, *, system: str, prompt: str) -> Written:
@@ -39,7 +58,8 @@ def _write(client, *, system: str, prompt: str) -> Written:
         model=gemini.MODEL,
         contents=[f"{system}\n\n{prompt}"],
     )
-    return Written(text=response.text, cost_usd=estimate_cost(response.usage_metadata))
+    text = _text_of(response) or _NO_TEXT
+    return Written(text=text, cost_usd=estimate_cost(response.usage_metadata))
 
 
 def reply_about_video(analysis: dict, persona: str, client) -> Written:
@@ -56,8 +76,3 @@ def write_digest(items: list[dict], template: str, client) -> Written:
         items, ensure_ascii=False, indent=2
     )
     return _write(client, system=template, prompt=prompt)
-
-
-def build_client(api_key: str):
-    """Same Gemini client as the analyzer — one vendor now."""
-    return gemini.build_client(api_key)
