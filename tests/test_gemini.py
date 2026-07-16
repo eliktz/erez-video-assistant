@@ -39,7 +39,7 @@ def test_analyze_video_parses_json_response():
 
     assert result["hook"] == "הילד רץ אחרי המשאית"
     assert result["fits_erez_style"] is True
-    assert client.models.calls[0]["model"] == "gemini-2.5-flash"
+    assert client.models.calls[0]["model"] == "gemini-3.5-flash"
 
 
 def test_analyze_video_strips_markdown_fences():

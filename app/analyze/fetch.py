@@ -47,4 +47,18 @@ def download(url: str, dest_dir: str, *, runner=None) -> FetchResult:
     duration = info.get("duration")
     if duration is None:
         raise FetchError(f"No duration reported for {url}; refusing to guess cost.")
-    return FetchResult(path=info["_filename"], duration_seconds=float(duration))
+    return FetchResult(path=_downloaded_path(info, url), duration_seconds=float(duration))
+
+
+def _downloaded_path(info: dict, url: str) -> str:
+    """Where yt-dlp actually wrote the file.
+
+    Current yt-dlp reports it under requested_downloads[].filepath; older/other
+    shapes used a top-level _filename. Accept either, and fail loudly if neither
+    is present rather than handing a missing path downstream.
+    """
+    downloads = info.get("requested_downloads") or []
+    path = info.get("_filename") or (downloads[0].get("filepath") if downloads else None)
+    if not path:
+        raise FetchError(f"Downloaded {url} but could not find the saved file path.")
+    return path
