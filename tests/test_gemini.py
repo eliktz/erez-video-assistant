@@ -94,3 +94,30 @@ def test_wait_until_active_raises_when_gemini_cannot_process():
 
     with pytest.raises(RuntimeError, match="could not process"):
         gemini._wait_until_active(object(), _FakeFile("FAILED"), sleep=lambda _s: None)
+
+
+def test_generate_falls_back_when_main_model_is_overloaded():
+    # Live incident 2026-07-16: gemini-3.5-flash 503'd ("high demand") while the lite
+    # tier stayed up. One hot model must not take the bot down.
+    from google.genai import errors
+
+    class _Models:
+        def __init__(self):
+            self.calls = []
+
+        def generate_content(self, *, model, contents):
+            self.calls.append(model)
+            if model == gemini.MODEL:
+                raise errors.ServerError(503, {"error": {"message": "high demand"}}, None)
+            return _FakeResponse('{"ok": true}')
+
+    class _Client:
+        def __init__(self):
+            self.models = _Models()
+
+    client = _Client()
+
+    response = gemini.generate(client, ["prompt"])
+
+    assert client.models.calls == [gemini.MODEL, gemini.FALLBACK_MODEL]
+    assert response.text == '{"ok": true}'

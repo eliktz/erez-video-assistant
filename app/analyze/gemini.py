@@ -12,6 +12,12 @@ import time
 # verified live on 2026-07-16 against a real reel. If this ever 404s, list live models with
 # `client.models.list()` and pick a current *-flash that supports generateContent.
 MODEL = "gemini-3.5-flash"
+
+# Google's free tier overloads one model while another is fine ("503 high demand").
+# When MODEL is overloaded we retry once on the lite tier — it rides separate capacity,
+# so it tends to be up exactly when the main flash is hot. Lighter answers beat silence.
+FALLBACK_MODEL = "gemini-flash-lite-latest"
+
 RUBRIC_VERSION = "v1"
 
 # Gemini accepts a video upload instantly, then processes it in the background. Calling
@@ -63,6 +69,16 @@ def _wait_until_active(client, uploaded, *, sleep=time.sleep):
     return uploaded
 
 
+def generate(client, contents):
+    """One text/video generation call; if MODEL is overloaded (5xx), try the fallback once."""
+    from google.genai import errors
+
+    try:
+        return client.models.generate_content(model=MODEL, contents=contents)
+    except errors.ServerError:
+        return client.models.generate_content(model=FALLBACK_MODEL, contents=contents)
+
+
 def analyze_video(video_path: str, rubric: str, client) -> dict:
     """Analyze one video against the rubric. Returns the parsed JSON payload.
 
@@ -70,10 +86,7 @@ def analyze_video(video_path: str, rubric: str, client) -> dict:
     Positional-or-keyword by design: callers inject a stand-in with the same shape.
     """
     uploaded = _wait_until_active(client, client.files.upload(file=video_path))
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=[uploaded, rubric],
-    )
+    response = generate(client, [uploaded, rubric])
     return json.loads(_strip_fences(response.text))
 
 

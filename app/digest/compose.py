@@ -53,11 +53,11 @@ def _text_of(response) -> str:
 
 
 def _write(client, *, system: str, prompt: str) -> Written:
-    """One Gemini text call. system + prompt go in as one turn, like the spike proved."""
-    response = client.models.generate_content(
-        model=gemini.MODEL,
-        contents=[f"{system}\n\n{prompt}"],
-    )
+    """One Gemini text call. system + prompt go in as one turn, like the spike proved.
+
+    Goes through gemini.generate so an overloaded model falls back instead of failing.
+    """
+    response = gemini.generate(client, [f"{system}\n\n{prompt}"])
     text = _text_of(response) or _NO_TEXT
     return Written(text=text, cost_usd=estimate_cost(response.usage_metadata))
 
