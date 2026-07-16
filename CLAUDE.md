@@ -44,11 +44,13 @@ Optimize every change for a beginner being able to read it later.
 ## Stack
 
 Python 3.12 · uv · python-telegram-bot (long polling) · APScheduler · SQLite · Railway.
-Gemini `gemini-3.5-flash` analyzes video. Claude `claude-opus-4-8` writes Hebrew prose.
+Gemini `gemini-3.5-flash` both analyzes the video AND writes the Hebrew prose.
 
-Why two models: Gemini is the only cheap model that ingests whole video. Claude writes the
-Hebrew Erez actually wants to read — and if the digest is boring, he stops opening it, which
-kills the project. That is the one place a second vendor earns its keep.
+One model, on purpose: Gemini is the only cheap model that ingests whole video, and on
+2026-07-16 we checked its Hebrew against one of Erez's own reels — it is good enough that a
+second vendor is not worth the extra key, bill, and complexity. If the digest ever reads flat,
+the fix is `prompts/digest.md` (Erez's file), not a new vendor. Claude was the original plan
+for prose; the design spec keeps that history.
 
 ## Commands
 

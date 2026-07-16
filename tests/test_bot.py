@@ -22,7 +22,6 @@ def _deps(tmp_path, *, analysis=None, reply="ניתוח בעברית", fail=Fals
     return bot.Deps(
         conn=db.connect(":memory:"),
         gemini_client=object(),
-        claude_client=object(),
         rubric="rubric",
         persona="persona",
         work_dir=str(tmp_path),
@@ -53,9 +52,10 @@ def test_analyze_url_reuses_stored_analysis(tmp_path):
     bot.analyze_url(url, deps=deps)
     bot.analyze_url(url, deps=deps)
 
-    # Second call must not pay Gemini again.
+    # Second call must not re-ANALYZE the video (the expensive call). The reply is
+    # composed fresh each time, so gate specifically on the analyze_video op.
     calls = deps.conn.execute(
-        "SELECT COUNT(*) c FROM provider_usage WHERE provider='gemini'"
+        "SELECT COUNT(*) c FROM provider_usage WHERE operation='analyze_video'"
     ).fetchone()["c"]
     assert calls == 1
 
@@ -84,14 +84,14 @@ def test_video_id_from_url_rejects_lookalike_hosts():
     assert bot.video_id_from_url("https://www.youtube.com/shorts/abc") == "youtube:abc"
 
 
-def test_analyze_url_bills_the_claude_call(tmp_path):
+def test_analyze_url_bills_the_reply_composition(tmp_path):
     deps = _deps(tmp_path)
     deps.compose_reply = lambda analysis, persona, client: compose.Written("תשובה", 0.0175)
 
     bot.analyze_url("https://www.instagram.com/reel/DY2QmhAoF-z/", deps=deps)
 
     rows = deps.conn.execute(
-        "SELECT * FROM provider_usage WHERE provider='claude'"
+        "SELECT * FROM provider_usage WHERE provider='gemini' AND operation='reply_about_video'"
     ).fetchall()
     assert len(rows) == 1
     assert rows[0]["cost_usd"] == pytest.approx(0.0175)

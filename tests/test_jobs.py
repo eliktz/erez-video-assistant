@@ -57,7 +57,6 @@ def _deps(tmp_path):
     return bot.Deps(
         conn=db.connect(":memory:"),
         gemini_client=object(),
-        claude_client=object(),
         rubric="r",
         persona="p",
         work_dir=str(tmp_path),
