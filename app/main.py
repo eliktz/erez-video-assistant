@@ -98,6 +98,11 @@ async def on_message(update: Update, ctx) -> None:
 def start_scheduler(deps: bot.Deps) -> None:
     """APScheduler in-process: no cron, no second system to learn."""
     settings = config.load_settings()
+    if not settings["digest"].get("enabled", False):
+        # No real video source yet, so the digest would just say "found nothing" every
+        # morning. Stay on-demand-only until settings.yaml flips digest.enabled to true.
+        log.info("Daily digest disabled (settings.yaml digest.enabled=false) — on-demand only.")
+        return
     token = config.env("TELEGRAM_BOT_TOKEN")
     erez = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_EREZ"))
     admin = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_ADMIN"))
