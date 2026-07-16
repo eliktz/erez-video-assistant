@@ -86,7 +86,12 @@ async def on_message(update: Update, ctx) -> None:
             await update.message.reply_text("שלח לי לינק לסרטון ואני אנתח אותו.")
         return
     await update.message.reply_text("רגע, מנתח... 🎬")
-    reply = bot.analyze_url(match.group(0), deps=ctx.bot_data["deps"])
+    try:
+        reply = bot.analyze_url(match.group(0), deps=ctx.bot_data["deps"])
+    except Exception:
+        # A failed analysis must never end in silence — say so and ask to retry.
+        log.exception("analyze_url failed for %s", match.group(0))
+        reply = "משהו נתקע אצל ספק ה-AI (עומס זמני אצלם). נסה לשלוח שוב עוד דקה 🙏"
     await update.message.reply_text(reply)
 
 
@@ -140,6 +145,11 @@ def start_scheduler(deps: bot.Deps) -> None:
     log.info("Scheduler started: digest at %02d:00 %s", settings["digest"]["hour"], TZ)
 
 
+async def on_error(update, ctx) -> None:
+    """Log anything a handler raises, so failures are diagnosable instead of silent."""
+    log.error("Unhandled error while processing an update", exc_info=ctx.error)
+
+
 def main() -> None:
     app = Application.builder().token(config.env("TELEGRAM_BOT_TOKEN")).build()
     app.bot_data["deps"] = build_deps()
@@ -152,6 +162,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", on_start, filters=only_us))
     app.add_handler(CommandHandler("costs", on_costs, filters=only_us))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & only_us, on_message))
+    app.add_error_handler(on_error)
     log.info("Bot starting (long polling); answering %d authorized chat(s)", len(allowed))
     start_scheduler(app.bot_data["deps"])
     app.run_polling()
