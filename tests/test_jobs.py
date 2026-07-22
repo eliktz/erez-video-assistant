@@ -69,6 +69,51 @@ def _deps(tmp_path):
     )
 
 
+def test_digest_analyzes_youtube_candidates_directly(tmp_path):
+    # Digest candidates are YouTube videos; on Railway they cannot be downloaded
+    # (datacenter-IP wall), so they must go through the direct-URL path.
+    import json
+
+    from app.analyze import gemini
+
+    deps = _deps(tmp_path)
+    deps.download = None  # any download attempt would crash — direct path must win
+    deps.analyze_youtube = lambda url, rubric, client: gemini.RawAnalysis(
+        json.dumps({"hook": "h"}), 0.005
+    )
+    yt = Candidate(
+        id="youtube:zzz",
+        platform="youtube",
+        native_id="zzz",
+        url="https://www.youtube.com/shorts/zzz",
+        creator="c",
+        caption=None,
+        posted_at="2026-07-14T00:00:00Z",
+        views=None,
+        likes=None,
+        comments=None,
+        source="youtube",
+    )
+    notifier = _FakeNotifier()
+
+    body = jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([yt])],
+        notifier=notifier,
+        settings=_settings(),
+        watchlist=None,
+        compose_digest=lambda items, template, client: compose.Written("דוח", 0.0),
+        template="t",
+        now=NOW,
+    )
+
+    assert body == "דוח"
+    row = deps.conn.execute(
+        "SELECT cost_usd FROM provider_usage WHERE operation='analyze_video'"
+    ).fetchone()
+    assert row["cost_usd"] == 0.005
+
+
 def test_run_digest_sends_and_records(tmp_path):
     deps = _deps(tmp_path)
     notifier = _FakeNotifier()
@@ -173,7 +218,5 @@ def test_run_digest_leaves_sent_unset_when_delivery_fails(tmp_path):
         )
 
     # A failed send must NOT record sent_at — else the dead-man's-switch stays silent.
-    row = deps.conn.execute(
-        "SELECT sent_at FROM digests WHERE for_date='2026-07-14'"
-    ).fetchone()
+    row = deps.conn.execute("SELECT sent_at FROM digests WHERE for_date='2026-07-14'").fetchone()
     assert row is None or row["sent_at"] is None

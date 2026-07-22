@@ -5,6 +5,7 @@ the one assumption everything else rests on: that the Hebrew analysis is good
 enough that Erez wants more of it.
 """
 
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from urllib.parse import urlparse
 
 from app.analyze import fetch, gemini
 from app.store import usage, videos
+
+log = logging.getLogger(__name__)
 
 # Only these hosts are real video platforms. Anything else is not ours to fetch.
 _ALLOWED_HOSTS = {
@@ -72,6 +75,7 @@ class Deps:
     now: Callable[[], str] = utc_now
     download: Callable = fetch.download
     analyze: Callable = None
+    analyze_youtube: Callable = None
     compose_reply: Callable = None
     monthly_cap_usd: float = 40.0
 
@@ -122,11 +126,34 @@ def _store_video(deps: Deps, video_id: str, url: str) -> None:
     )
 
 
+def analyze_directly(deps: Deps, url: str) -> dict:
+    """YouTube only: Gemini fetches the URL server-side — no download, no yt-dlp.
+
+    Bills before parsing, so a malformed reply still writes its provider_usage row.
+    """
+    analyze_yt = deps.analyze_youtube or gemini.analyze_youtube
+    raw = analyze_yt(url, deps.rubric, deps.gemini_client)
+    usage.record(deps.conn, "gemini", "analyze_video", 1, raw.cost_usd, now=deps.now())
+    return gemini.parse_analysis(raw.text)
+
+
 def _download_and_analyze(deps: Deps, video_id: str, url: str) -> dict | str:
     """Returns the analysis dict, or a Hebrew error string on download failure."""
+    if video_id.startswith("youtube:"):
+        try:
+            analysis = analyze_directly(deps, url)
+            videos.save_analysis(
+                deps.conn, video_id, gemini.RUBRIC_VERSION, analysis, now=deps.now()
+            )
+            return analysis
+        except Exception:
+            log.warning(
+                "Direct YouTube analysis failed for %s; trying download", url, exc_info=True
+            )
     try:
         result = deps.download(url, deps.work_dir)
-    except fetch.FetchError:
+    except fetch.FetchError as exc:
+        log.warning("Download failed for %s: %s", url, exc)
         return "לא הצלחתי להוריד את הסרטון. נסה לשלוח לי את הקובץ עצמו."
 
     analyze = deps.analyze or gemini.analyze_video
@@ -135,8 +162,12 @@ def _download_and_analyze(deps: Deps, video_id: str, url: str) -> dict | str:
     finally:
         # Billed the moment the call returns, even if the reply will not parse.
         usage.record(
-            deps.conn, "gemini", "analyze_video", 1,
-            gemini.estimate_cost(result.duration_seconds), now=deps.now(),
+            deps.conn,
+            "gemini",
+            "analyze_video",
+            1,
+            gemini.estimate_cost(result.duration_seconds),
+            now=deps.now(),
         )
     videos.save_analysis(deps.conn, video_id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
     return analysis

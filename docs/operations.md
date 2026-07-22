@@ -75,6 +75,11 @@ updates). For local testing either create a separate dev bot via BotFather
   `thoughts_token_count` separately and Google bills them as output. Any cost math
   must include them (`compose.estimate_cost` does — a one-line reply once showed
   20 visible tokens and 533 thinking tokens).
+- **YouTube blocks datacenter IPs.** yt-dlp from Railway gets "Sign in to confirm
+  you're not a bot" (cookies would "fix" it — forbidden by doctrine). That is why
+  YouTube videos are analyzed WITHOUT downloading: the URL goes to Gemini as
+  `file_data` and Google fetches it server-side (`gemini.analyze_youtube`). yt-dlp
+  remains only as a fallback and for other platforms/local dev.
 - **yt-dlp:** the real info dict has no `_filename`; the saved path is
   `requested_downloads[0].filepath`. Instagram/TikTok downloads usually fail
   logged-out (expected — see Deferred). NEVER add cookies or Erez's session.
