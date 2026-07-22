@@ -64,13 +64,10 @@ allowlist) that pulls the file via `getFile` and runs it through the same analys
 Erez asked about first can never rank. Undermines "the corpus compounds."
 **Fix:** COALESCE the collector's values over the nulls.
 
-## 6. `DB_PATH` default silently discards the corpus  (review #16)
+## 6. ~~`DB_PATH` default silently discards the corpus~~  (review #16) — **RESOLVED 2026-07-17**
 
-`app/main.py::build_deps` defaults `DB_PATH` to the repo-relative `data/erez.db`. With
-`restartPolicyType: ON_FAILURE` and no Railway volume attached, every redeploy wipes the database.
-The deploy step says to attach a volume and set `DB_PATH=/data/erez.db` by hand — but a default
-that *works* while quietly throwing away data is the wrong failure mode.
-**Fix:** require `DB_PATH` explicitly in production, or fail loudly when the path is not on a volume.
+Railway now has volume `bot-volume` mounted at `/data` and `DB_PATH=/data/erez.db` set,
+so the corpus survives redeploys. The repo-relative default remains for local dev only.
 
 ## 7. Files and functions over the size rules  (review #17)
 
@@ -90,13 +87,19 @@ written is stricter than the code, so either the rule or the code should move.
 
 ---
 
-## Also still outstanding (needs credentials, not code)
+## Status update (2026-07-22)
 
-- **Task 4 Step 1/6 — the live Gemini spike and Hebrew quality check.** The review caught the SDK
-  *shape* bug the spike was meant to catch, but the question the spike actually exists for — *is the
-  Hebrew analysis genuinely good?* — is still unanswered. This remains the riskiest assumption in
-  the project. Run it against Erez's own reel before trusting anything downstream.
-- **Task 7 Step 7** — real end-to-end Telegram test.
-- **Task 8 Steps 2-3** — Railway deploy (attach the volume, set `DB_PATH=/data/erez.db`).
-- **Task 9 Step 1/6** — the vendor spike and the Instagram/TikTok scraper. Until then the digest
-  sees YouTube only.
+Done since this list was written: the live Gemini spike + Hebrew quality check (validated
+against Erez's own top-5 — see `docs/erez-top5.md`), the real end-to-end Telegram test,
+the Railway deploy (volume + env vars), Gemini-only swap, thinking-token billing, empty-reply
+guard, PTB error handler + honest failure replies, 503 model fallback, and topic-based
+trend collection feeding the (now enabled) daily digest.
+
+**Still open (needs a decision or budget, not just code):**
+- **Task 9 Step 1/6 — the scraper vendor spike and the Instagram/TikTok collector.** The
+  single biggest gap: Erez's world is Instagram, and the digest can't see it. $49–100/mo
+  decision; measure EnsembleData-class vendors, don't guess.
+- **Gemini billing** — the key is free tier; 503 storms are its cost. Enabling billing on
+  the Google project (~$2–5/mo) moves us to paid capacity if the storms annoy in daily use.
+- **Digest quality tuning** — the English topics surface the global staged-kindness genre.
+  Sharpening `watchlist.yaml` topics is Erez's highest-leverage edit (and his file).
