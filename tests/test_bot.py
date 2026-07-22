@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from app import bot
-from app.analyze import fetch
+from app.analyze import fetch, gemini
 from app.digest import compose
 from app.store import db, usage
 
@@ -84,6 +84,26 @@ def test_video_id_from_url_rejects_lookalike_hosts():
     assert bot.video_id_from_url("https://www.youtube.com/shorts/abc") == "youtube:abc"
 
 
+def test_youtube_urls_are_analyzed_directly_without_downloading(tmp_path):
+    # On Railway, yt-dlp cannot reach YouTube (datacenter-IP wall). The direct path
+    # must not even attempt a download — Google fetches the URL itself.
+    sample = json.loads(Path("tests/fixtures/analysis_sample.json").read_text(encoding="utf-8"))
+    deps = _deps(tmp_path, fail=True)  # any download attempt would raise
+    deps.analyze = None  # make sure the download-path analyze seam is not what answers
+    deps.analyze_youtube = lambda url, rubric, client: gemini.RawAnalysis(
+        json.dumps(sample, ensure_ascii=False), 0.006
+    )
+
+    out = bot.analyze_url("https://www.youtube.com/shorts/Oe-vjF39O0U", deps=deps)
+
+    assert out == "ניתוח בעברית"
+    row = deps.conn.execute(
+        "SELECT cost_usd FROM provider_usage WHERE operation='analyze_video'"
+    ).fetchone()
+    assert row["cost_usd"] == pytest.approx(0.006)
+    assert deps.conn.execute("SELECT COUNT(*) c FROM analyses").fetchone()["c"] == 1
+
+
 def test_analyze_url_bills_the_reply_composition(tmp_path):
     deps = _deps(tmp_path)
     deps.compose_reply = lambda analysis, persona, client: compose.Written("תשובה", 0.0175)
@@ -106,9 +126,7 @@ def test_analyze_url_bills_gemini_even_when_the_reply_wont_parse(tmp_path):
     with pytest.raises(ValueError):
         bot.analyze_url("https://www.instagram.com/reel/DY2QmhAoF-z/", deps=deps)
 
-    rows = deps.conn.execute(
-        "SELECT * FROM provider_usage WHERE provider='gemini'"
-    ).fetchall()
+    rows = deps.conn.execute("SELECT * FROM provider_usage WHERE provider='gemini'").fetchall()
     assert len(rows) == 1
 
 

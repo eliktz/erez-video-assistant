@@ -6,9 +6,17 @@ NOW = "2026-07-14T12:00:00Z"
 
 def _c(cid, views, posted_at):
     return Candidate(
-        id=cid, platform="tiktok", native_id=cid, url=f"https://x/{cid}",
-        creator=None, caption=None, posted_at=posted_at, views=views,
-        likes=None, comments=None, source="scraper",
+        id=cid,
+        platform="tiktok",
+        native_id=cid,
+        url=f"https://x/{cid}",
+        creator=None,
+        caption=None,
+        posted_at=posted_at,
+        views=views,
+        likes=None,
+        comments=None,
+        source="scraper",
     )
 
 
@@ -28,7 +36,7 @@ def test_velocity_is_zero_without_data():
 
 
 def test_top_n_ranks_by_velocity_and_dedupes():
-    slow = _c("slow", 1_000, "2026-07-13T12:00:00Z")   # 24h -> ~42/h
+    slow = _c("slow", 1_000, "2026-07-13T12:00:00Z")  # 24h -> ~42/h
     fast = _c("fast", 10_000, "2026-07-14T10:00:00Z")  # 2h  -> 5000/h
     got = rank.top_n([slow, fast, fast], n=2, now=NOW)
 

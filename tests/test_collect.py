@@ -48,8 +48,17 @@ def test_candidate_as_row_matches_store_schema():
     row = c.as_row()
 
     assert set(row) == {
-        "id", "platform", "native_id", "url", "creator", "caption",
-        "posted_at", "views", "likes", "comments", "source",
+        "id",
+        "platform",
+        "native_id",
+        "url",
+        "creator",
+        "caption",
+        "posted_at",
+        "views",
+        "likes",
+        "comments",
+        "source",
     }
 
 

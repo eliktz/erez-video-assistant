@@ -96,6 +96,39 @@ def test_wait_until_active_raises_when_gemini_cannot_process():
         gemini._wait_until_active(object(), _FakeFile("FAILED"), sleep=lambda _s: None)
 
 
+def test_analyze_youtube_sends_the_url_for_google_to_fetch():
+    # YouTube blocks datacenter IPs, so the cloud deploy cannot yt-dlp. Instead the
+    # URL goes to Gemini as file_data and GOOGLE fetches the video server-side.
+    class _Models:
+        def __init__(self):
+            self.calls = []
+
+        def generate_content(self, **kwargs):
+            self.calls.append(kwargs)
+            return _FakeResponse('{"hook": "x"}')
+
+    class _Client:
+        def __init__(self):
+            self.models = _Models()
+
+    client = _Client()
+
+    raw = gemini.analyze_youtube("https://www.youtube.com/shorts/abc", "rubric", client)
+
+    part = client.models.calls[0]["contents"][0]
+    assert part.file_data.file_uri == "https://www.youtube.com/shorts/abc"
+    assert gemini.parse_analysis(raw.text) == {"hook": "x"}
+
+
+def test_cost_from_usage_counts_all_billed_tokens():
+    class _U:
+        prompt_token_count = 1_000_000  # $0.30
+        candidates_token_count = 400_000  # $1.00
+        thoughts_token_count = 600_000  # $1.50 — thinking is billed as output
+
+    assert gemini.cost_from_usage(_U()) == 0.30 + 1.00 + 1.50
+
+
 def test_generate_falls_back_when_main_model_is_overloaded():
     # Live incident 2026-07-16: gemini-3.5-flash 503'd ("high demand") while the lite
     # tier stayed up. One hot model must not take the bot down.

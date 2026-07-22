@@ -30,6 +30,15 @@ def _analyze_candidate(candidate, *, deps) -> dict | None:
     cached = videos.get_analysis(deps.conn, candidate.id, gemini.RUBRIC_VERSION)
     if cached:
         return cached
+    if candidate.platform == "youtube":
+        try:
+            analysis = bot.analyze_directly(deps, candidate.url)
+            videos.save_analysis(
+                deps.conn, candidate.id, gemini.RUBRIC_VERSION, analysis, now=deps.now()
+            )
+            return analysis
+        except Exception:
+            log.warning("Direct analysis failed for %s; trying download", candidate.url)
     try:
         result = deps.download(candidate.url, deps.work_dir)
     except Exception:
@@ -42,8 +51,12 @@ def _analyze_candidate(candidate, *, deps) -> dict | None:
     finally:
         # Billed the moment the call returns, even if the reply will not parse.
         usage.record(
-            deps.conn, "gemini", "analyze_video", 1,
-            gemini.estimate_cost(result.duration_seconds), now=deps.now(),
+            deps.conn,
+            "gemini",
+            "analyze_video",
+            1,
+            gemini.estimate_cost(result.duration_seconds),
+            now=deps.now(),
         )
     videos.save_analysis(deps.conn, candidate.id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
     return analysis

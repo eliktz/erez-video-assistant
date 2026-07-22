@@ -11,12 +11,6 @@ from dataclasses import dataclass
 
 from app.analyze import gemini
 
-# Text generation on gemini-3.5-flash is small next to the video-ingest call. Like
-# gemini.estimate_cost, treat this as order-of-magnitude, not an invoice. Public flash
-# rates as of 2026-07-16; re-check if MODEL changes.
-_USD_PER_INPUT_TOKEN = 0.30 / 1_000_000
-_USD_PER_OUTPUT_TOKEN = 2.50 / 1_000_000
-
 
 @dataclass(frozen=True)
 class Written:
@@ -29,14 +23,10 @@ class Written:
 def estimate_cost(usage) -> float:
     """Cost of one Gemini text call from its usage_metadata.
 
-    A reasoning model bills its "thinking" tokens at the output rate, and they arrive in a
-    separate thoughts_token_count. Miss them and /costs (and the $40 cap) understate the bill.
+    Delegates to gemini.cost_from_usage — one place owns the rates, and it already
+    counts thinking tokens (billed at the output rate, reported separately).
     """
-    in_tokens = getattr(usage, "prompt_token_count", 0) or 0
-    out_tokens = (getattr(usage, "candidates_token_count", 0) or 0) + (
-        getattr(usage, "thoughts_token_count", 0) or 0
-    )
-    return in_tokens * _USD_PER_INPUT_TOKEN + out_tokens * _USD_PER_OUTPUT_TOKEN
+    return gemini.cost_from_usage(usage)
 
 
 # What Erez sees if Gemini returns no usable text (a safety block or a truncated reply).
