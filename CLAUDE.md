@@ -70,3 +70,14 @@ GitHub-linked. Telegram allows one poller per token, so don't `make run` against
 prod token while Railway is up. **Read `docs/operations.md` before touching prod** —
 it has the deploy steps, env var map, and the gotchas that already cost us hours
 (supergroup ID migration, Gemini model retirement, free-tier 503 storms).
+
+## Docs map — read before starting work
+
+| Doc | When to read it |
+|---|---|
+| [`docs/operations.md`](docs/operations.md) | Before deploying or debugging prod. Deploy steps, env vars, gotchas. |
+| [`docs/follow-ups.md`](docs/follow-ups.md) | Before picking what to build next — the tracked known gaps. |
+| [`docs/superpowers/specs/2026-07-14-erez-video-assistant-direction-design.md`](docs/superpowers/specs/2026-07-14-erez-video-assistant-direction-design.md) | The why: full design, research, phases 2–4. |
+| [`docs/superpowers/plans/2026-07-14-phase-1-digest-and-analysis.md`](docs/superpowers/plans/2026-07-14-phase-1-digest-and-analysis.md) | Phase 1 as planned (executed; history). |
+| [`docs/erez-top5.md`](docs/erez-top5.md) | The rubric test set — Erez's own best videos. |
+| [`docs/learn/`](docs/learn/) + [`docs/good-first-issues.md`](docs/good-first-issues.md) | Erez's Hebrew lessons and starter tasks. |
