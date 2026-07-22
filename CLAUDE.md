@@ -59,5 +59,14 @@ make setup            # one command, working environment
 make test             # run before every push
 make lint             # ruff
 make digest-preview   # render a digest from fixtures — no API keys, no cost
-make run              # run the bot locally (needs .env)
+make run              # run the bot locally (needs .env) — but see the ops note below
 ```
+
+## Production
+
+The bot runs 24/7 on Railway (project `erez-video-assistant`, service `bot`).
+Deploys are manual: `railway up` from a clean, merged `main` — the service is NOT
+GitHub-linked. Telegram allows one poller per token, so don't `make run` against the
+prod token while Railway is up. **Read `docs/operations.md` before touching prod** —
+it has the deploy steps, env var map, and the gotchas that already cost us hours
+(supergroup ID migration, Gemini model retirement, free-tier 503 storms).
