@@ -4,6 +4,10 @@
 # platform: instagram | tiktok | youtube
 # handle: השם בכתובת של הפרופיל (בלי @)
 
+# שים לב: הדוח היומי קורא כרגע רק יוטיוב. היוצרים מאינסטגרם שמורים כאן לשלב הסקרייפר.
+# בדקנו ב-2026-07-17: ליוצרי האינסטגרם האלה אין ערוצי יוטיוב פעילים (רק ערוצי-מראה ריקים),
+# חוץ מ-sviiiiy שיש לו ערוץ קטן — הוספנו אותו.
+
 creators:
   - platform: instagram
     handle: andrejko.epta
@@ -13,7 +17,11 @@ creators:
     handle: thiagosolrac_
   - platform: instagram
     handle: sviiiiy
+  - platform: youtube
+    handle: sviiiiy # הערוץ הקטן של אותו יוצר — אם יתעורר, נראה את זה
 
+# הנושאים הם מה שמזין את הדוח ביוטיוב: כל בוקר הוא מחפש את הסרטונים הקצרים
+# הכי נצפים מהיומיים האחרונים בכל נושא. תוסיף/תשנה נושאים — הדוח ישתנה.
 topics:
   - random acts of kindness
   - surprise gift stranger

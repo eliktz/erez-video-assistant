@@ -119,6 +119,24 @@ def test_youtube_source_skips_channels_lookup_for_a_UC_id():
     assert http.calls[0]["url"] == youtube._SEARCH_URL
 
 
+def test_youtube_source_searches_topics_for_trending_shorts():
+    payload = json.loads(Path("tests/fixtures/youtube_search.json").read_text())
+    http = _FakeHttp(payload)
+    source = youtube.YouTubeSource("KEY", http=http)
+
+    got = source.collect(
+        Watchlist(creators=[], topics=["random acts of kindness"]),
+        since="2026-07-12T00:00:00Z",
+    )
+
+    assert len(got) == 1
+    params = http.calls[0]["params"]
+    assert params["q"] == "random acts of kindness"
+    assert params["videoDuration"] == "short"
+    assert params["order"] == "viewCount"  # trend discovery: already climbing, not just new
+    assert params["publishedAfter"] == "2026-07-12T00:00:00Z"
+
+
 def test_youtube_source_skips_an_unresolvable_handle_without_raising():
     http = _FakeHttp(
         by_url={

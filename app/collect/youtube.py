@@ -82,6 +82,28 @@ class YouTubeSource:
             source="youtube",
         )
 
+    def _search_topic(self, topic: str, since: str) -> list[Candidate]:
+        """Trend discovery: the most-viewed shorts about a topic in the window.
+
+        Ordered by viewCount on purpose — the digest wants what is already
+        taking off, not just what is newest.
+        """
+        response = self._http.get(
+            _SEARCH_URL,
+            params={
+                "key": self._api_key,
+                "q": topic,
+                "part": "snippet",
+                "type": "video",
+                "videoDuration": "short",
+                "order": "viewCount",
+                "publishedAfter": since,
+                "maxResults": 10,
+            },
+        )
+        response.raise_for_status()
+        return [self._to_candidate(item) for item in response.json().get("items", [])]
+
     def collect(self, watchlist: Watchlist, *, since: str) -> list[Candidate]:
         found: list[Candidate] = []
         for creator in watchlist.creators:
@@ -91,4 +113,6 @@ class YouTubeSource:
             if channel_id is None:
                 continue
             found.extend(self._search_channel(channel_id, since))
+        for topic in watchlist.topics:
+            found.extend(self._search_topic(topic, since))
         return found
