@@ -8,7 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from app import bot, config, jobs
+from app import bot, config, ideas, jobs
 from app.analyze import gemini
 from app.collect.youtube import YouTubeSource
 from app.digest import compose
@@ -62,7 +62,8 @@ async def on_start(update: Update, ctx) -> None:
         return
     await update.message.reply_text(
         "היי ארז 👋\nשלח לי לינק לרילס/טיקטוק/שורטס ואני אנתח לך אותו.\n"
-        "כל בוקר ב-7:00 תקבל ממני דוח טרנדים."
+        "כל בוקר ב-7:00 תקבל ממני דוח טרנדים.\n"
+        "תשלח /idea ואני אציע לך רעיונות לסרטון הבא שלך."
     )
 
 
@@ -73,6 +74,13 @@ async def on_costs(update: Update, ctx) -> None:
         return
     month = datetime.now(UTC).strftime("%Y-%m")
     await update.message.reply_text(bot.costs_message(ctx.bot_data["deps"].conn, month=month))
+
+
+async def on_idea(update: Update, ctx) -> None:
+    if not _authorized(update, ctx):
+        return
+    template = config.load_prompt("ideas")
+    await update.message.reply_text(ideas.pitch(ctx.bot_data["deps"], template))
 
 
 async def on_message(update: Update, ctx) -> None:
@@ -166,6 +174,7 @@ def main() -> None:
     only_us = filters.Chat(chat_id=allowed)
     app.add_handler(CommandHandler("start", on_start, filters=only_us))
     app.add_handler(CommandHandler("costs", on_costs, filters=only_us))
+    app.add_handler(CommandHandler("idea", on_idea, filters=only_us))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & only_us, on_message))
     app.add_error_handler(on_error)
     log.info("Bot starting (long polling); answering %d authorized chat(s)", len(allowed))
