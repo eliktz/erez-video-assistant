@@ -66,3 +66,11 @@ def write_digest(items: list[dict], template: str, client) -> Written:
         items, ensure_ascii=False, indent=2
     )
     return _write(client, system=template, prompt=prompt)
+
+
+def pitch_ideas(analyses: list[dict], template: str, client) -> Written:
+    """/idea: recent video analyses -> concrete Hebrew video ideas for Erez."""
+    prompt = "הנה ניתוחים של סרטונים מרגשים/ויראליים שראיתי לאחרונה.\n\n" + json.dumps(
+        analyses, ensure_ascii=False, indent=2
+    )
+    return _write(client, system=template, prompt=prompt)

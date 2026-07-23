@@ -70,6 +70,44 @@ def test_usage_month_to_date_sums_by_provider():
     assert rows["claude"]["cost_usd"] == 0.10
 
 
+def test_recent_analyses_returns_newest_first():
+    conn = _conn()
+    for i, when in enumerate(["2026-07-10T00:00:00Z", "2026-07-12T00:00:00Z"]):
+        vid = f"youtube:v{i}"
+        videos.upsert_video(
+            conn,
+            {
+                "id": vid, "platform": "youtube", "native_id": f"v{i}",
+                "url": f"https://youtube.com/shorts/v{i}", "creator": None, "caption": None,
+                "posted_at": None, "views": 0, "likes": 0, "comments": 0, "source": "youtube",
+            },
+            now=when,
+        )
+        videos.save_analysis(conn, vid, "v1", {"hook": f"hook{i}"}, now=when)
+
+    out = videos.recent_analyses(conn, limit=10)
+
+    assert [a["hook"] for a in out] == ["hook1", "hook0"]
+
+
+def test_recent_analyses_respects_limit():
+    conn = _conn()
+    for i in range(3):
+        vid = f"youtube:v{i}"
+        videos.upsert_video(
+            conn,
+            {
+                "id": vid, "platform": "youtube", "native_id": f"v{i}",
+                "url": f"https://youtube.com/shorts/v{i}", "creator": None, "caption": None,
+                "posted_at": None, "views": 0, "likes": 0, "comments": 0, "source": "youtube",
+            },
+            now=NOW,
+        )
+        videos.save_analysis(conn, vid, "v1", {"hook": f"hook{i}"}, now=NOW)
+
+    assert len(videos.recent_analyses(conn, limit=2)) == 2
+
+
 def test_connection_is_usable_from_another_thread():
     # APScheduler runs the digest job in a worker thread that shares this connection.
     import threading
