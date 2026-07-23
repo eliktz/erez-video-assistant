@@ -1,6 +1,6 @@
 # Trend Radar + Deep Video Analysis — Action Plan
 
-**For Elik.** Erez split a broad ask (2026-07-22) into two tracks. This is what's already
+**For Elik.** Erez split a broad ask (2026-07-22) into three tracks. This is what's already
 done (no code needed), what's ready to build without a decision, and what needs Elik +
 a budget call.
 
@@ -15,6 +15,12 @@ digest and videos Erez sends on demand, against a rubric he tunes over time: ret
 (what keeps someone watching to the end, not just the hook), drop-off point, "purple cow"
 novelty, call-to-action quality.
 
+**Track 3 — idea generation.** Erez said it plainly (2026-07-23): once the bot knows what's
+trending and why it worked, it should help him turn that into concrete video ideas for his
+own audience — more Israeli, more Zionist — and pitch new creative concepts, not just
+analyze other people's videos. This is the `/idea` command already scoped in
+`docs/good-first-issues.md` #4 ("the big one").
+
 ---
 
 ## Already done — no Elik needed
@@ -27,9 +33,12 @@ restricted. Done 2026-07-22:
       Because on-demand link analysis and the daily digest both call
       `app/analyze/gemini.py::analyze_video` with this same rubric, **this covers Track 2
       for both paths already** — no code change was needed for the analysis depth itself.
-- [x] `config/watchlist.yaml` topics widened toward Erez's real content (soldiers,
-      Israeli pride) instead of generic "kindness." Still keyword search, not a trend
-      chart — see Track 1 below for the gap that leaves open.
+- [x] `config/watchlist.yaml` topics widened. Correction from Erez (2026-07-23): the
+      *search* itself should stay broad — emotional/viral content in general (kindness,
+      social experiments, random gifts/flowers to strangers), not narrowed to
+      soldiers/Zionist terms. The Israeli/Zionist angle is applied later, at the idea stage
+      (Track 3), not at discovery. Both broad and narrow topics are in the file now. Still
+      keyword search, not a trend chart — see Track 1 below for the gap that leaves open.
 
 ## Ready to build without a decision (not in the restricted-files list)
 
@@ -42,6 +51,17 @@ restricted. Done 2026-07-22:
       `gemini.analyze_video` path. None of the touched files (`app/main.py`, `app/bot.py`,
       `app/analyze/fetch.py`) are in the "don't touch without Elik" list — this can be
       built on request without waiting on this plan.
+- [ ] **Track 3: `/idea` command.** Already scoped in `docs/good-first-issues.md` #4: a new
+      `prompts/ideas.md` (Erez-owned, no code) plus a `CommandHandler("idea", ...)` in
+      `app/main.py`. It reads the last N analyzed videos from the DB (already stored —
+      `app/store/videos.py`), and asks Gemini to pitch 3 concrete video ideas for Erez,
+      translated to his Israeli/Zionist audience and tagged to whichever of his two pages
+      (`fits_which_page`, already in the rubric) they suit. No new collector, no vendor, no
+      Elik — this is buildable today on the existing data the bot already has.
+      **Not a one-shot output** (Erez, 2026-07-23): `/idea` should read as a brainstorm
+      opener, not a final answer — he replies in chat ("develop idea 2", "make that one
+      for Gentleman instead") and the bot keeps refining with him. Uses the existing
+      free-form chat/reply path, not a new mechanism.
 
 ## Track 1: general trend radar — needs Elik, new collector code
 
@@ -50,13 +70,16 @@ search ranked by most-viewed-in-48h per topic. There's no notion of "trending in
 of topic" — a trending song or challenge with no kindness/soldier angle wouldn't surface
 today even on YouTube.
 
-- [ ] **YouTube trending chart (free, no vendor).** `videos.list(chart=mostPopular,
-      regionCode=IL)` is a different endpoint than the search call used today — it's
-      YouTube's own trending chart, not a keyword search. Gets "what's blowing up in
-      Israel generally" on YouTube. New collector function; touches `app/collect/youtube.py`
-      (restricted — Elik) plus a new digest section so trend-radar items don't get mixed
-      into the emotional-video writeup (`app/digest/rank.py`, `compose.py`, `jobs.py`,
-      `prompts/digest.md`).
+- [ ] **YouTube trending chart (free, no vendor).** `videos.list(chart=mostPopular)` is a
+      different endpoint than the search call used today — it's YouTube's own trending
+      chart, not a keyword search. **Global, not `regionCode=IL`** (Erez, 2026-07-23): his
+      inspiration sources are worldwide creators (andr3w_wave, Dhar Mann, KINDNESS MAN are
+      all non-Israeli), so scoping this to Israel-only would miss exactly the content this
+      track exists to surface. Query without a region filter (or loop a few major regions —
+      US, UK, etc. — and merge), not `regionCode=IL`. New collector function; touches
+      `app/collect/youtube.py` (restricted — Elik) plus a new digest section so trend-radar
+      items don't get mixed into the emotional-video writeup (`app/digest/rank.py`,
+      `compose.py`, `jobs.py`, `prompts/digest.md`).
 - [ ] **Flag, don't build yet: trending *audio/song* detection has no YouTube API
       equivalent.** YouTube doesn't expose a "trending sounds" endpoint — that's native to
       TikTok/Instagram's own discovery, not YouTube Shorts. Realistically this piece only
@@ -90,7 +113,8 @@ today even on YouTube.
 ## Priority order (recommended)
 
 1. **Now, free:** rubric deepening (done), watchlist tuning (done), video-upload fallback
-   (buildable today).
+   (buildable today), `/idea` command (buildable today — Track 3, this is what actually
+   closes the loop Erez asked for: trend → why it worked → an idea for his own channel).
 2. **Cheap, no vendor:** YouTube trending-chart collector + digest section split.
 3. **Free but separate value:** Erez's own Facebook Page via Graph API — personal
    analytics, not trend discovery.
