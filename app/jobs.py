@@ -47,17 +47,23 @@ def _analyze_candidate(candidate, *, deps) -> dict | None:
 
     analyze = deps.analyze or gemini.analyze_video
     try:
-        analysis = analyze(result.path, deps.rubric, deps.gemini_client)
-    finally:
-        # Billed the moment the call returns, even if the reply will not parse.
-        usage.record(
-            deps.conn,
-            "gemini",
-            "analyze_video",
-            1,
-            gemini.estimate_cost(result.duration_seconds),
-            now=deps.now(),
-        )
+        try:
+            analysis = analyze(result.path, deps.rubric, deps.gemini_client)
+        finally:
+            # Billed the moment the call returns, even if the reply will not parse.
+            usage.record(
+                deps.conn,
+                "gemini",
+                "analyze_video",
+                1,
+                gemini.estimate_cost(result.duration_seconds),
+                now=deps.now(),
+            )
+    except Exception:
+        # One bad video (a Gemini hiccup, an unparseable reply) must not cost Erez the
+        # whole morning digest — skip it and let the rest of the candidates through.
+        log.warning("Could not analyze %s; skipping", candidate.url)
+        return None
     videos.save_analysis(deps.conn, candidate.id, gemini.RUBRIC_VERSION, analysis, now=deps.now())
     return analysis
 

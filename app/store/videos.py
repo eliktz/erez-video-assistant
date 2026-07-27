@@ -69,3 +69,12 @@ def get_analysis(conn: sqlite3.Connection, video_id: str, rubric_version: str) -
         (video_id, rubric_version),
     ).fetchone()
     return json.loads(row["payload_json"]) if row else None
+
+
+def recent_analyses(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    """The last N analyses, newest first — what /idea pitches ideas from."""
+    rows = conn.execute(
+        "SELECT payload_json FROM analyses ORDER BY created_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]

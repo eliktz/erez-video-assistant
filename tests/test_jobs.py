@@ -1,4 +1,5 @@
 from app import jobs
+from app.analyze import fetch
 from app.collect.base import Candidate
 from app.digest import compose
 from app.store import db
@@ -151,6 +152,38 @@ def test_run_digest_survives_a_dead_source(tmp_path):
     )
 
     assert body == "דוח"  # one vendor down must not kill the morning
+
+
+def test_run_digest_survives_one_bad_analysis(tmp_path):
+    # A Gemini hiccup on one video must not cost Erez the whole morning digest.
+    deps = _deps(tmp_path)
+    calls = []
+
+    def flaky_analyze(path, rubric, client):
+        calls.append(path)
+        if len(calls) == 1:
+            raise ValueError("Gemini returned non-JSON")
+        return {"hook": "h", "why_it_worked": "w"}
+
+    deps.download = lambda url, dest, runner=None: fetch.FetchResult(
+        path=str(tmp_path / "v.mp4"), duration_seconds=20.0
+    )
+    deps.analyze = flaky_analyze
+    notifier = _FakeNotifier()
+
+    body = jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([_candidate("tiktok:1"), _candidate("tiktok:2")])],
+        notifier=notifier,
+        settings=_settings(),
+        watchlist=None,
+        compose_digest=lambda items, template, client: compose.Written("דוח", 0.0),
+        template="t",
+        now=NOW,
+    )
+
+    assert body == "דוח"  # the good video still makes the digest
+    assert len(notifier.sent) == 1
 
 
 def test_run_digest_says_so_when_nothing_found(tmp_path):
