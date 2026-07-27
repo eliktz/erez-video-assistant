@@ -65,3 +65,15 @@ def test_env_raises_when_missing(monkeypatch):
 def test_env_returns_default(monkeypatch):
     monkeypatch.delenv("DEFINITELY_NOT_SET", raising=False)
     assert config.env("DEFINITELY_NOT_SET", "fallback") == "fallback"
+
+
+def test_load_prompts_joins_files_in_order(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "prompts" / "a.md").write_text("ALEPH", encoding="utf-8")
+    (tmp_path / "prompts" / "b.md").write_text("BET", encoding="utf-8")
+
+    out = config.load_prompts("a", "b")
+
+    assert out.index("ALEPH") < out.index("BET")
+    assert "---" in out  # visible separator between the files

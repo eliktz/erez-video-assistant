@@ -56,6 +56,18 @@ def test_write_digest_includes_every_item():
     assert '"a"' in prompt and '"b"' in prompt
 
 
+def test_pitch_ideas_includes_every_analysis():
+    client = _FakeClient("3 רעיונות בשבילך")
+
+    out = compose.pitch_ideas(
+        [{"hook": "a"}, {"hook": "b"}], template="תציע רעיונות", client=client
+    )
+
+    assert out.text == "3 רעיונות בשבילך"
+    prompt = client.models.calls[0]["contents"][0]
+    assert '"a"' in prompt and '"b"' in prompt
+
+
 def test_estimate_cost_uses_gemini_rates():
     # 1000 in * 0.30/1M + 500 out * 2.50/1M = 0.0003 + 0.00125 = 0.00155
     assert abs(compose.estimate_cost(_FakeUsage()) - 0.00155) < 1e-9

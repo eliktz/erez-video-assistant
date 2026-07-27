@@ -54,6 +54,13 @@ def load_prompt(name: str) -> str:
     return Path(f"prompts/{name}.md").read_text(encoding="utf-8")
 
 
+def load_prompts(*names: str) -> str:
+    """Several prompt files joined into one. The model only sees what we send it —
+    a prompt that *mentions* another file (like editing_tips.md) must be sent
+    together with it, or the reference points at nothing."""
+    return "\n\n---\n\n".join(load_prompt(name) for name in names)
+
+
 def env(key: str, default: str | None = None) -> str:
     value = os.environ.get(key, default)
     if value is None:
