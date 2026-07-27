@@ -72,14 +72,17 @@ today even on YouTube.
 
 - [ ] **YouTube trending chart (free, no vendor).** `videos.list(chart=mostPopular)` is a
       different endpoint than the search call used today — it's YouTube's own trending
-      chart, not a keyword search. **Global, not `regionCode=IL`** (Erez, 2026-07-23): his
-      inspiration sources are worldwide creators (andr3w_wave, Dhar Mann, KINDNESS MAN are
-      all non-Israeli), so scoping this to Israel-only would miss exactly the content this
-      track exists to surface. Query without a region filter (or loop a few major regions —
-      US, UK, etc. — and merge), not `regionCode=IL`. New collector function; touches
-      `app/collect/youtube.py` (restricted — Elik) plus a new digest section so trend-radar
-      items don't get mixed into the emotional-video writeup (`app/digest/rank.py`,
-      `compose.py`, `jobs.py`, `prompts/digest.md`).
+      chart, not a keyword search. **Two separate pulls, not one merged list** (Erez,
+      2026-07-23, refining the 2026-07-23 "make it global" note): call it once with
+      `regionCode=IL` and once with no region filter (or a few major regions — US, UK —
+      merged), and show them as **two distinct sections** in the digest, not blended
+      together. Reason: Israel's chart is what's locally relevant right now (local news,
+      local audio, timing); the global chart is what's inspiration-worthy from worldwide
+      creators (andr3w_wave, Dhar Mann, KINDNESS MAN are all non-Israeli) — mixing them
+      would bury one signal inside the other. New collector function; touches
+      `app/collect/youtube.py` (restricted — Elik) plus a new digest section (or two) so
+      trend-radar items don't get mixed into the emotional-video writeup either
+      (`app/digest/rank.py`, `compose.py`, `jobs.py`, `prompts/digest.md`).
 - [ ] **Flag, don't build yet: trending *audio/song* detection has no YouTube API
       equivalent.** YouTube doesn't expose a "trending sounds" endpoint — that's native to
       TikTok/Instagram's own discovery, not YouTube Shorts. Realistically this piece only
