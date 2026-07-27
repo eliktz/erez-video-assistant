@@ -9,6 +9,20 @@ across networks — a song, a challenge, anything blowing up — independent of 
 emotional. Start on YouTube Shorts now; expand (paid) to Instagram, TikTok, Facebook.
 Facebook specifically: Erez's personal page is his strongest channel, ~100K followers.
 
+**Track 1's final shape is a 2×2, not one list** (Erez, 2026-07-24): every trending item
+gets sorted into one of four buckets before it reaches the digest —
+
+|              | Emotional/viral-kindness genre | Regular/general trending |
+|--------------|--------------------------------|---------------------------|
+| **Israel**   | quadrant A                     | quadrant B                |
+| **World**    | quadrant C                     | quadrant D                |
+
+"Emotional" here means: does it match Erez's genre (kindness, social experiment, staged
+street moment) — run it through the Track 2 rubric to decide. "Regular" is everything else
+trending (a song, a meme, a news story, a challenge with no emotional angle). Quadrants A/C
+feed Track 2's deep analysis and Track 3's `/idea`; B/D are shown as a lighter "here's what's
+generally buzzing" list, since Track 2's rubric doesn't apply to a non-emotional trend.
+
 **Track 2 — deep analysis of emotional videos.** Why a video is trending, why it's
 emotional, why it has so many views. Applies to both auto-discovered videos in the daily
 digest and videos Erez sends on demand, against a rubric he tunes over time: retention
@@ -83,6 +97,11 @@ today even on YouTube.
       `app/collect/youtube.py` (restricted — Elik) plus a new digest section (or two) so
       trend-radar items don't get mixed into the emotional-video writeup either
       (`app/digest/rank.py`, `compose.py`, `jobs.py`, `prompts/digest.md`).
+- [ ] **Classify each trending item into the 2×2 (see above).** Run it through the same
+      rubric call Track 2 already uses (`gemini.analyze_video`) to decide emotional-genre
+      vs regular — `fits_erez_style` (already in the rubric) is most of this decision
+      already. No new AI call type needed, just routing: emotional → Track 2/3 pipeline,
+      regular → a lighter trend-list section with no deep analysis.
 - [ ] **Flag, don't build yet: trending *audio/song* detection has no YouTube API
       equivalent.** YouTube doesn't expose a "trending sounds" endpoint — that's native to
       TikTok/Instagram's own discovery, not YouTube Shorts. Realistically this piece only
