@@ -12,6 +12,7 @@ from app import bot, config, ideas, jobs
 from app.analyze import gemini
 from app.collect.youtube import YouTubeSource
 from app.digest import compose
+from app.notify import telegram as telegram_notify
 from app.notify.telegram import TelegramNotifier
 from app.store import db
 
@@ -78,12 +79,18 @@ async def on_costs(update: Update, ctx) -> None:
     await update.message.reply_text(bot.costs_message(ctx.bot_data["deps"].conn, month=month))
 
 
+async def _reply_chunked(update: Update, text: str) -> None:
+    """Telegram caps messages at 4096 chars; long model replies go out in parts."""
+    for part in telegram_notify.chunks(text):
+        await update.message.reply_text(part)
+
+
 async def on_idea(update: Update, ctx) -> None:
     if not _authorized(update, ctx):
         return
     # ideas.md cites editing_tips.md, so the tips ride along.
     template = config.load_prompts("ideas", "editing_tips")
-    await update.message.reply_text(ideas.pitch(ctx.bot_data["deps"], template))
+    await _reply_chunked(update, ideas.pitch(ctx.bot_data["deps"], template))
 
 
 async def on_message(update: Update, ctx) -> None:
@@ -103,7 +110,7 @@ async def on_message(update: Update, ctx) -> None:
         # A failed analysis must never end in silence — say so and ask to retry.
         log.exception("analyze_url failed for %s", match.group(0))
         reply = "משהו נתקע אצל ספק ה-AI (עומס זמני אצלם). נסה לשלוח שוב עוד דקה 🙏"
-    await update.message.reply_text(reply)
+    await _reply_chunked(update, reply)
 
 
 def start_scheduler(deps: bot.Deps) -> None:
