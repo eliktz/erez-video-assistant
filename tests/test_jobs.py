@@ -253,3 +253,58 @@ def test_run_digest_leaves_sent_unset_when_delivery_fails(tmp_path):
     # A failed send must NOT record sent_at — else the dead-man's-switch stays silent.
     row = deps.conn.execute("SELECT sent_at FROM digests WHERE for_date='2026-07-14'").fetchone()
     assert row is None or row["sent_at"] is None
+
+
+def test_run_digest_sends_a_plain_fallback_when_composing_fails(tmp_path):
+    # We already paid for the analyses; a failed prose call must not cost the morning.
+    deps = _deps(tmp_path)
+    deps.analyze_youtube = lambda url, rubric, client: __import__(
+        "app.analyze.gemini", fromlist=["RawAnalysis"]
+    ).RawAnalysis('{"hook": "ילד רץ", "transferable_idea": "לצלם לפני ההפתעה"}', 0.005)
+    yt = Candidate(
+        id="youtube:q1",
+        platform="youtube",
+        native_id="q1",
+        url="https://www.youtube.com/shorts/q1",
+        creator="c",
+        caption="כותרת",
+        posted_at="2026-07-14T00:00:00Z",
+        views=None,
+        likes=None,
+        comments=None,
+        source="youtube",
+    )
+    notifier = _FakeNotifier()
+
+    def boom_compose(items, template, client):
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    body = jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([yt])],
+        notifier=notifier,
+        settings=_settings(),
+        watchlist=None,
+        compose_digest=boom_compose,
+        template="t",
+        now=NOW,
+    )
+
+    assert body is not None
+    assert "ילד רץ" in notifier.sent[0]  # the analysis we paid for still reaches Erez
+    row = deps.conn.execute("SELECT sent_at FROM digests WHERE for_date='2026-07-14'").fetchone()
+    assert row["sent_at"] is not None
+
+
+def test_plain_digest_includes_link_and_analysis():
+    out = jobs.plain_digest(
+        [
+            {
+                "url": "https://x/1",
+                "caption": "כותרת",
+                "analysis": {"hook": "הוק", "why_it_worked": "סיבה"},
+            }
+        ]
+    )
+
+    assert "הוק" in out and "סיבה" in out and "https://x/1" in out

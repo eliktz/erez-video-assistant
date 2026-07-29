@@ -154,3 +154,47 @@ def test_generate_falls_back_when_main_model_is_overloaded():
 
     assert client.models.calls == [gemini.MODEL, gemini.FALLBACK_MODEL]
     assert response.text == '{"ok": true}'
+
+
+def test_generate_falls_back_when_daily_quota_is_exhausted():
+    # 2026-07-29 outage: the free tier caps requests per DAY per MODEL (20). The digest's
+    # compose call hit 429 and died, even though the lite tier had its own quota left.
+    from google.genai import errors
+
+    class _Models:
+        def __init__(self):
+            self.calls = []
+
+        def generate_content(self, *, model, contents):
+            self.calls.append(model)
+            if model == gemini.MODEL:
+                raise errors.ClientError(
+                    429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED"}}, None
+                )
+            return _FakeResponse('{"ok": true}')
+
+    class _Client:
+        def __init__(self):
+            self.models = _Models()
+
+    client = _Client()
+
+    response = gemini.generate(client, ["prompt"])
+
+    assert client.models.calls == [gemini.MODEL, gemini.FALLBACK_MODEL]
+    assert response.text == '{"ok": true}'
+
+
+def test_generate_does_not_swallow_other_client_errors():
+    import pytest
+    from google.genai import errors
+
+    class _Models:
+        def generate_content(self, *, model, contents):
+            raise errors.ClientError(400, {"error": {"code": 400}}, None)
+
+    class _Client:
+        models = _Models()
+
+    with pytest.raises(errors.ClientError):
+        gemini.generate(_Client(), ["prompt"])

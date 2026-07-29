@@ -80,13 +80,29 @@ def _wait_until_active(client, uploaded, *, sleep=time.sleep):
     return uploaded
 
 
+def _is_exhausted(exc) -> bool:
+    """A 429: the free tier's per-model daily request quota is spent."""
+    return getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+
+
 def generate(client, contents):
-    """One text/video generation call; if MODEL is overloaded (5xx), try the fallback once."""
+    """One text/video generation call, with a fallback to the lite model.
+
+    Falls back on BOTH failure modes we actually see in production:
+      - 5xx ServerError: "high demand", the free tier shedding load.
+      - 429 ClientError: the per-model daily request cap (20/day on free tier).
+    Quotas are per project PER MODEL, so the lite tier has its own bucket and is
+    usually up when the main flash is exhausted — a lighter answer beats no digest.
+    """
     from google.genai import errors
 
     try:
         return client.models.generate_content(model=MODEL, contents=contents)
     except errors.ServerError:
+        return client.models.generate_content(model=FALLBACK_MODEL, contents=contents)
+    except errors.ClientError as exc:
+        if not _is_exhausted(exc):
+            raise
         return client.models.generate_content(model=FALLBACK_MODEL, contents=contents)
 
 
