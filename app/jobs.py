@@ -92,6 +92,29 @@ def _save_digest(conn, *, for_date: str, body: str, html_path: str, now: str) ->
     conn.commit()
 
 
+def plain_digest(items: list[dict]) -> str:
+    """A digest assembled without asking a model anything.
+
+    Used only when the prose call fails. Reads worse than the real digest, but the
+    analyses are already bought and paid for, so this beats sending nothing at all.
+    """
+    lines = ["בוקר טוב ☕", "", "לא הצלחתי לנסח את הדוח הבוקר (עומס אצל ספק ה-AI),"]
+    lines += ["אבל הנה מה שמצאתי, גולמי:", ""]
+    for item in items:
+        analysis = item.get("analysis") or {}
+        lines.append(f"🎬 {item.get('caption') or item.get('creator') or 'סרטון'}")
+        if analysis.get("hook"):
+            lines.append(f"   הוק: {analysis['hook']}")
+        if analysis.get("why_it_worked"):
+            lines.append(f"   למה זה עבד: {analysis['why_it_worked']}")
+        if analysis.get("transferable_idea"):
+            lines.append(f"   מה לקחת מזה: {analysis['transferable_idea']}")
+        if item.get("url"):
+            lines.append(f"   {item['url']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def run_digest(
     *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str
 ) -> str | None:
@@ -110,9 +133,16 @@ def run_digest(
         log.warning("Digest for %s had no analyzable items", for_date)
         return None
 
-    written = compose_digest(items, template, deps.gemini_client)
-    body = written.text
-    usage.record(deps.conn, "gemini", "write_digest", 1, written.cost_usd, now=now)
+    try:
+        written = compose_digest(items, template, deps.gemini_client)
+        body = written.text
+        usage.record(deps.conn, "gemini", "write_digest", 1, written.cost_usd, now=now)
+    except Exception:
+        # We already paid to analyze these videos. Losing the whole morning because the
+        # prose call failed (quota, overload) wastes that and leaves Erez with nothing,
+        # so fall back to a plain list built from the analyses in hand — no AI call.
+        log.exception("Composing the digest failed; sending the plain fallback instead")
+        body = plain_digest(items)
     html_path = page.write(page.render(body, items, for_date=for_date), "web/out", for_date)
 
     # Send first: if delivery raises, sent_at is never written, so the 07:30 dead-man's-switch
