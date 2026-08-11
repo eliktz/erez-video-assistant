@@ -138,6 +138,7 @@ def start_scheduler(deps: bot.Deps) -> None:
             compose_digest=compose.write_digest,
             template=config.load_prompt("digest"),
             now=bot.utc_now(),
+            excluded_formats=jobs.parse_excluded_formats(config.load_prompt("excluded_formats")),
         )
 
     def _deadman_job() -> None:
