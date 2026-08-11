@@ -14,8 +14,12 @@ gets sorted into one of four buckets before it reaches the digest —
 
 |              | Emotional/viral-kindness genre | Regular/general trending |
 |--------------|--------------------------------|---------------------------|
-| **Israel**   | quadrant A                     | quadrant B                |
-| **World**    | quadrant C                     | quadrant D                |
+| **Israel**   | quadrant A — **3/day**          | quadrant B — **2/day**    |
+| **World**    | quadrant C — **3/day**          | quadrant D — **2/day**    |
+
+Counts fixed by Erez (2026-07-25): 3 + 3 + 2 + 2 = **10 items/day total**, which matches
+`settings.yaml`'s existing `digest.max_videos: 10` — no cost-cap surprise, just re-allocating
+the same 10 slots across the four quadrants instead of one undifferentiated top-10.
 
 "Emotional" here means: does it match Erez's genre (kindness, social experiment, staged
 street moment) — run it through the Track 2 rubric to decide. "Regular" is everything else
@@ -123,6 +127,35 @@ today even on YouTube.
          paid vendor as IG/TikTok, if one even covers Facebook video trends — check during
          the same spike above.
 
+## Track 4: creator discovery — needs Elik, new collector code
+
+Erez (2026-07-25): he wants the bot to keep **finding new creators** in the style of the
+ones already in `config/watchlist.yaml`, not just track the ~15 he's manually added so
+far. The tracked creators are meant as **reference examples of a style/audience**, not an
+exhaustive list — the bot should use them to go find more like them.
+
+- [ ] **How this actually works today (manually, in chat):** search YouTube for the
+      hashtags Erez's tracked creators use in their captions (`#lovely #kindness`,
+      `#actsofkindness`, etc.), sorted by view count, then check each result channel's
+      subscriber count and current activity before it's worth adding. This is exactly how
+      andr3w_wave, KINDNESS MAN, THE GREAT HERO, Dhar Mann, Coby Persin, Bufones.net were
+      found this week — by hand, one search at a time.
+- [ ] **To make the bot do this itself:** a new collector function in
+      `app/collect/youtube.py` (restricted — Elik) that takes the hashtags already seen in
+      tracked creators' captions (or a small curated list in `config/watchlist.yaml`, e.g.
+      a new `discovery_hashtags` field) and runs `search.list` against them, same pattern
+      as `_search_topic`. Needs a **channel-level** result too (not just video-level) —
+      YouTube's `search.list` with `type=channel` returns channels directly.
+- [ ] **Keep the human in the loop.** New channels should not silently join the tracked
+      list and start feeding the digest — every creator added this week went through Erez
+      approving each one by name in chat first. Cheapest version: a new digest section or
+      a `/discover` command that surfaces 3-5 candidate channels (name, subscriber count,
+      one standout video) for Erez to approve, same as the manual process now, just
+      run by the bot instead of by hand.
+- [ ] **No vendor needed for the YouTube side** — this uses the same free YouTube Data API
+      already in use. Instagram/TikTok creator discovery has the same vendor dependency as
+      Track 1's Instagram/TikTok trending (the spike below).
+
 ## Decision Elik + Erez need to make
 
 1. Ship Track 1 in stages — YouTube trending chart first (free, this week), paid vendors
@@ -142,3 +175,6 @@ today even on YouTube.
    analytics, not trend discovery.
 4. **Needs budget + a decision:** Instagram + TikTok + general Facebook trending, one
    vendor spike covering all three.
+5. **Cheap, no vendor, but a real code project:** Track 4 creator discovery on YouTube —
+   lower priority than Track 1's quadrants, since manual discovery in chat works fine as a
+   stopgap and costs nothing but Erez's/Claude's time.
