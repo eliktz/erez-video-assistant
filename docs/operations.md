@@ -38,6 +38,24 @@ gitignored `.env`. Names: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID_EREZ`,
 `TELEGRAM_CHAT_ID_ADMIN`, `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `DB_PATH=/data/erez.db`.
 Never commit a secret — gitleaks in CI blocks the PR.
 
+### Who owns what
+
+**Erez owns the product and pays for the APIs.** Elik helps build it. So the accounts
+behind the keys are Erez's, deliberately: if Elik stops, nothing needs re-creating.
+
+| Credential | Account owner | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | **Erez** | Needs billing linked to his Google project — the free tier's 20 requests/day/model cannot run a daily 11-call digest. |
+| `YOUTUBE_API_KEY` | Elik (for now) | Free tier is ample; migrate to Erez at handover. |
+| `TELEGRAM_BOT_TOKEN` | Elik (BotFather) | Transferable via bot ownership transfer at handover. |
+
+**Use two keys from Erez's project, not one.** The prod key lives only in Railway; his
+laptop gets a separate spend-capped key (`.env.dev.example`). They bill to the same
+account but draw separate quota — with one shared key, a session of local experimenting
+starves the next morning's digest. Google's free-tier quota also resets at **midnight
+Pacific**, so the 07:00 Israel job runs at the *tail* of Google's quota day: whatever was
+spent during the Israeli day counts against that morning's run.
+
 ## Local development
 
 ```bash

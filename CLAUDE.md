@@ -38,8 +38,12 @@ Optimize every change for a beginner being able to read it later.
   human approval before anything sends.
 - **Never scrape using Erez's account.** Logged-out public data only. Using his cookies or
   session would put his account at risk — that risk is not ours to take.
-- **Prod secrets live only in Railway.** Erez's machine gets a dev bot token and a
-  spend-capped Gemini key, never prod credentials.
+- **Erez owns and pays for the API accounts** (Gemini, and later the rest). Elik helps
+  build; Erez holds the accounts, so nothing here dies if Elik steps away.
+- **Prod keys live only in Railway — including Erez's own.** Two keys from *his* project:
+  one for prod that stays in Railway, and a separate spend-capped one on his laptop for
+  learning. Same owner, separate quota: a shared key means an afternoon of experimenting
+  drains the quota the 07:00 digest needs (this is exactly how 2026-07-29 broke).
 
 ## Stack
 
