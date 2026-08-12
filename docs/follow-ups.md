@@ -22,6 +22,16 @@ views" idea — the reason the digest is supposed to be worth reading — does n
 ids from `search.list`. Every rank test hand-builds Candidates *with* views, which is why nothing
 caught this — add a test using a Candidate as the real collector actually produces it.
 
+**Confirmed as a live symptom, not just theoretical (Erez, 2026-07-24):** he noticed the digest
+only ever seems to feature the specific creators in `watchlist.creators`, never the broader
+`watchlist.topics` search results — even though `_search_topic` already scans all of YouTube, not
+just his tracked creators. Root cause is this exact bug: `collect()` appends creator videos to the
+list *before* topic-search videos (`app/collect/youtube.py:107-118`), Python's `sorted()` is
+stable, and with every candidate tied at velocity 0.0, `top_n` just returns the first `max_videos`
+in that append order — so the ~11 tracked creators (up to 10 videos each) fill all 10 digest slots
+before a single topic-search result is ever reached. Fixing this one bug fixes both problems at
+once: real velocity ranking, *and* topic-search results actually reaching the digest.
+
 ## 2. The digest page link is never sent  (review #10)
 
 `app/jobs.py::run_digest` renders and stores `html_path`, then sends only the raw Claude body.
