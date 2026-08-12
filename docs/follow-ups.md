@@ -10,7 +10,15 @@ rather than forgotten.
 
 ---
 
-## 1. YouTube never sets view counts, so ranking is inert  (review #8)
+## 1. ~~YouTube never sets view counts, so ranking is inert~~  (review #8) — **RESOLVED 2026-08-12**
+
+Fixed after Erez's diagnosis (PR #15): `collect()` now batches a follow-up
+`videos.list(part=statistics)` call (50 ids/unit) filling real views/likes/comments.
+Verified live: 59/59 candidates with real views; the digest picks became topic-search
+discoveries ranked by true velocity instead of watchlist creators in collection order.
+Original entry kept below for history.
+
+### Original entry (historical)
 
 `app/collect/youtube.py::_to_candidate` hardcodes `views=None`, and `app/digest/rank.py::velocity`
 returns `0.0` when views are falsy. Every YouTube candidate therefore ties at 0.0 and `top_n`
