@@ -12,3 +12,7 @@ Magic Booth
 שטיח אדום
 Red Carpet
 RedCarpetBoy
+
+# גרסאות בלי רווח — ככה זה מופיע בהאשטגים (#MagicBooth, #RedCarpet)
+MagicBooth
+RedCarpet
