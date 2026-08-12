@@ -10,6 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from app import bot, config, ideas, jobs
 from app.analyze import gemini
+from app.collect.trending import TrendingChart
 from app.collect.youtube import YouTubeSource
 from app.digest import compose
 from app.notify import telegram as telegram_notify
@@ -125,6 +126,12 @@ def start_scheduler(deps: bot.Deps) -> None:
     erez = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_EREZ"))
     admin = TelegramNotifier(token, config.env("TELEGRAM_CHAT_ID_ADMIN"))
     sources = [YouTubeSource(config.env("YOUTUBE_API_KEY"))]
+    # Erez's 2x2 radar: Israel's chart and the world's, as separate digest sections.
+    # region=None means YouTube's default (US) chart — the closest free thing to "world".
+    trending = {
+        "israel": TrendingChart(config.env("YOUTUBE_API_KEY"), region="IL"),
+        "world": TrendingChart(config.env("YOUTUBE_API_KEY")),
+    }
 
     scheduler = BackgroundScheduler(timezone=TZ)
 
@@ -139,6 +146,7 @@ def start_scheduler(deps: bot.Deps) -> None:
             template=config.load_prompt("digest"),
             now=bot.utc_now(),
             excluded_formats=jobs.parse_excluded_formats(config.load_prompt("excluded_formats")),
+            trending=trending,
         )
 
     def _deadman_job() -> None:
