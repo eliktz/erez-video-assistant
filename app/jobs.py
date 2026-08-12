@@ -127,7 +127,15 @@ def plain_digest(items: list[dict]) -> str:
 
 
 def run_digest(
-    *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str,
+    *,
+    deps,
+    sources,
+    notifier,
+    settings,
+    watchlist,
+    compose_digest,
+    template,
+    now: str,
     excluded_formats: list[str] = (),
 ) -> str | None:
     """Collect, rank, analyze, compose, publish, send. Returns the body, or None."""
