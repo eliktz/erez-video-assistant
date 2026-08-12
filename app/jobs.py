@@ -9,7 +9,7 @@ import logging
 
 from app import bot
 from app.analyze import gemini
-from app.digest import page, rank
+from app.digest import page, radar, rank
 from app.store import usage, videos
 
 log = logging.getLogger(__name__)
@@ -79,14 +79,46 @@ def _analyze_candidate(candidate, *, deps) -> dict | None:
     return analysis
 
 
+def _classify(candidate, *, deps, now: str) -> dict | None:
+    """One rubric call to route a chart video inside the 2x2 (app/digest/radar.py).
+
+    The analysis lands in the cache, so a video that wins an emotional slot is
+    not paid for twice when _build_items comes back for it.
+    """
+    videos.upsert_video(deps.conn, candidate.as_row(), now=now)
+    return _analyze_candidate(candidate, deps=deps)
+
+
+def _pick(candidates, *, deps, settings, trending, excluded_formats, now: str):
+    """The morning's slots: Erez's 2x2 radar when charts are wired in, plain
+    velocity top-N when not (local runs, tests, radar switched off)."""
+    if not trending:
+        picked = rank.top_n(candidates, n=settings["digest"]["max_videos"], now=now)
+        return [(c, None) for c in picked], []
+    charts = radar.collect_charts(trending, excluded=lambda c: _excluded(c, excluded_formats))
+    return radar.pick(
+        charts,
+        candidates,
+        classify=lambda c: _classify(c, deps=deps, now=now),
+        quotas=radar.quotas_from(settings),
+        now=now,
+    )
+
+
 def _build_items(picked, *, deps, now: str) -> list[dict]:
     items = []
-    for candidate in picked:
+    for candidate, section in picked:
         videos.upsert_video(deps.conn, candidate.as_row(), now=now)
         analysis = _analyze_candidate(candidate, deps=deps)
         if analysis:
-            items.append({**candidate.as_row(), "analysis": analysis})
+            items.append({**candidate.as_row(), "analysis": analysis, "section": section})
     return items
+
+
+def _light_items(light) -> list[dict]:
+    """General-trend one-liners. No analysis on purpose — the rubric does not
+    apply to a meme or a song, so the digest must not pretend it does."""
+    return [{**c.as_row(), "analysis": None, "section": section} for c, section in light]
 
 
 def _save_digest(conn, *, for_date: str, body: str, html_path: str, now: str) -> None:
@@ -137,6 +169,7 @@ def run_digest(
     template,
     now: str,
     excluded_formats: list[str] = (),
+    trending: dict | None = None,
 ) -> str | None:
     """Collect, rank, analyze, compose, publish, send. Returns the body, or None."""
     if bot.over_budget(deps.conn, deps.monthly_cap_usd, now[:7]):
@@ -146,8 +179,15 @@ def run_digest(
     for_date = now[:10]
     candidates = _collect_all(sources, watchlist, since=_since(now, settings))
     candidates = [c for c in candidates if not _excluded(c, excluded_formats)]
-    picked = rank.top_n(candidates, n=settings["digest"]["max_videos"], now=now)
-    items = _build_items(picked, deps=deps, now=now)
+    deep, light = _pick(
+        candidates,
+        deps=deps,
+        settings=settings,
+        trending=trending,
+        excluded_formats=excluded_formats,
+        now=now,
+    )
+    items = _build_items(deep, deps=deps, now=now) + _light_items(light)
 
     if not items:
         notifier.send("בוקר טוב ☕ לא מצאתי הבוקר משהו ששווה לדבר עליו. אליק יבדוק.")

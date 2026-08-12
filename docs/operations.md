@@ -110,21 +110,35 @@ updates). For local testing either create a separate dev bot via BotFather
 Every paid API call writes a `provider_usage` row (hard project rule). `/costs`
 in Telegram shows month-to-date. A `cost.monthly_cap_usd` (settings.yaml, $40)
 is enforced in code before any paid work — bot replies and the digest stop when
-it is hit. Current burn: ~$0.006 per on-demand analysis, ~$0.05/day for the digest.
+it is hit. Current burn: ~$0.006 per on-demand analysis, ~$0.10/day for the digest
+(analyses + the trend radar's classification probes).
 
 ## The daily digest
 
-Fuel: `config/watchlist.yaml` (Erez-owned). Two inputs:
+Fuel: `config/watchlist.yaml` (Erez-owned) plus YouTube's own trending charts. Inputs:
 - `creators` with `platform: youtube` — checked 2026-07-17: Erez's Instagram
   creators have no living YouTube channels, so today this contributes ~nothing.
-- `topics` — the real fuel. Each topic is searched for the most-viewed shorts of
-  the last 48h (`order=viewCount`, `videoDuration=short`). English topics surface
-  the global staged-kindness genre; sharpening the topics list is the highest-leverage
+- `topics` — each topic is searched for the most-viewed shorts of the last 48h
+  (`order=viewCount`, `videoDuration=short`). English topics surface the global
+  staged-kindness genre; sharpening the topics list is the highest-leverage
   digest-quality edit and it is Erez's file.
+- **The trend radar (since 2026-08-12)** — `videos.list(chart=mostPopular)` pulled
+  twice: `regionCode=IL` and no region (YouTube's default US chart ≈ "world").
+  Each chart video gets one rubric call; `fits_erez_style` sorts it into Erez's 2×2
+  (Israel/world × emotional/general). Quotas in `settings.yaml` under `digest.radar`:
+  3 emotional (full analysis) + 2 general (one line, no analysis) per region.
+  `probe_per_region` caps the rubric calls — that is the radar's cost dial.
 
-Flow: collect → rank (`app/digest/rank.py`) → analyze up to `max_videos` →
-compose Hebrew → send to group → write `digests` row. `sent_at` is written only
-after a successful send, which is what the 07:30 dead-man check reads.
+Flow: collect → radar sort (`app/digest/radar.py`) + rank (`app/digest/rank.py`;
+topic/watchlist finds compete with the world chart's emotional finds on velocity) →
+analyze → compose Hebrew (the digest has 🇮🇱/🌍 sections — see `prompts/digest.md`) →
+send to group → write `digests` row. `sent_at` is written only after a successful
+send, which is what the 07:30 dead-man check reads.
+
+Radar quota math (matters on the free tier's 20 req/day/model): worst case is
+10 probes (5×2) + up to 3 analyses for topic finds that win world slots + 1 prose
+call = 14. That fits, but shares the day's bucket with on-demand links — if 429s
+appear at 07:00, lower `probe_per_region` or enable billing.
 
 ## Deferred / known gaps
 
@@ -133,10 +147,9 @@ See [`docs/follow-ups.md`](follow-ups.md) for the tracked list. Headlines:
   $49–100/mo). The spike was never run; until then the digest sees YouTube only.
   On-demand links from IG usually fail to download logged-out (by design we never
   use Erez's account) — the planned mitigation is a file-upload handler (not built).
-- YouTube collector sets `views=None`, so velocity ranking degenerates to
-  recency — needs a `videos.list(part=statistics)` follow-up call.
-- The digest HTML page is written and stored but the link is never sent; long
-  digests can exceed Telegram's 4096-char cap.
+  Cheaper first step: IG Business Discovery via Erez's Facebook Page token (pending).
+- The digest HTML page is written and stored but the link is never sent (long
+  digests now go out chunked in plain text, so this stopped being an outage).
 
 ## Repo map
 

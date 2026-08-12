@@ -325,6 +325,107 @@ def test_run_digest_sends_a_plain_fallback_when_composing_fails(tmp_path):
     assert row["sent_at"] is not None
 
 
+class _FakeChart:
+    def __init__(self, candidates):
+        self._candidates = candidates
+
+    def chart(self):
+        return self._candidates
+
+
+def _yt(cid, views=1_000, posted_at="2026-07-14T00:00:00Z"):
+    return Candidate(
+        id=f"youtube:{cid}",
+        platform="youtube",
+        native_id=cid,
+        url=f"https://www.youtube.com/watch?v={cid}",
+        creator="c",
+        caption=None,
+        posted_at=posted_at,
+        views=views,
+        likes=None,
+        comments=None,
+        source="trending",
+    )
+
+
+def _radar_deps(tmp_path):
+    """Deps whose fake Gemini marks any video with 'emo' in its URL as Erez's genre."""
+    import json
+
+    from app.analyze import gemini
+
+    deps = _deps(tmp_path)
+    deps.download = None  # chart videos are YouTube — the direct path must carry everything
+    deps.analyze_youtube = lambda url, rubric, client: gemini.RawAnalysis(
+        json.dumps({"hook": "h", "fits_erez_style": "emo" in url}), 0.001
+    )
+    return deps
+
+
+def test_run_digest_with_radar_builds_erezs_2x2(tmp_path):
+    deps = _radar_deps(tmp_path)
+    composed = {}
+
+    def fake_compose(items, template, client):
+        composed["items"] = items
+        return compose.Written("דוח", 0.0)
+
+    body = jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([])],
+        notifier=_FakeNotifier(),
+        settings=_settings(),
+        watchlist=None,
+        compose_digest=fake_compose,
+        template="t",
+        now=NOW,
+        trending={
+            "israel": _FakeChart([_yt("emo-il"), _yt("gen-il")]),
+            "world": _FakeChart([_yt("emo-w"), _yt("gen-w")]),
+        },
+    )
+
+    assert body == "דוח"
+    got = {(i["native_id"], i["section"]) for i in composed["items"]}
+    assert got == {
+        ("emo-il", "israel"),
+        ("gen-il", "israel"),
+        ("emo-w", "world"),
+        ("gen-w", "world"),
+    }
+    light = {i["native_id"] for i in composed["items"] if i["analysis"] is None}
+    assert light == {"gen-il", "gen-w"}  # general trends stay one-liners — no invented analysis
+
+
+def test_run_digest_radar_lets_topic_finds_win_world_slots(tmp_path):
+    # The watchlist/topic pool competes with the world chart for the world slots.
+    deps = _radar_deps(tmp_path)
+    settings = _settings()
+    settings["digest"]["radar"] = {"emotional_per_region": 1, "general_per_region": 1}
+    fast_topic_find = _yt("emo-fast", views=10_000_000, posted_at="2026-07-14T02:00:00Z")
+    composed = {}
+
+    def fake_compose(items, template, client):
+        composed["items"] = items
+        return compose.Written("דוח", 0.0)
+
+    jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([fast_topic_find])],
+        notifier=_FakeNotifier(),
+        settings=settings,
+        watchlist=None,
+        compose_digest=fake_compose,
+        template="t",
+        now=NOW,
+        trending={"world": _FakeChart([_yt("emo-slow", views=100)])},
+    )
+
+    deep = {(i["native_id"], i["section"]) for i in composed["items"] if i["analysis"]}
+    assert deep == {("emo-fast", "world")}  # the climbing topic find beat the chart video
+
+
 def test_plain_digest_includes_link_and_analysis():
     out = jobs.plain_digest(
         [
