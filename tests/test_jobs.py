@@ -28,14 +28,14 @@ class _FakeSource:
         return self._candidates
 
 
-def _candidate(cid="tiktok:1"):
+def _candidate(cid="tiktok:1", caption=None):
     return Candidate(
         id=cid,
         platform="tiktok",
         native_id="1",
         url="https://x/1",
         creator="c",
-        caption=None,
+        caption=caption,
         posted_at="2026-07-14T00:00:00Z",
         views=10_000,
         likes=None,
@@ -184,6 +184,35 @@ def test_run_digest_survives_one_bad_analysis(tmp_path):
 
     assert body == "דוח"  # the good video still makes the digest
     assert len(notifier.sent) == 1
+
+
+def test_parse_excluded_formats_skips_comments_and_blanks():
+    text = "# a comment\n\nשטיח אדום\nRed Carpet\n  \n# another\nMagic Booth\n"
+
+    assert jobs.parse_excluded_formats(text) == ["שטיח אדום", "Red Carpet", "Magic Booth"]
+
+
+def test_run_digest_skips_candidates_matching_excluded_formats(tmp_path):
+    deps = _deps(tmp_path)
+    notifier = _FakeNotifier()
+    wanted = _candidate("tiktok:1", caption="Random act of kindness")
+    excluded = _candidate("tiktok:2", caption="RedCarpetBoy walks the red carpet")
+
+    body = jobs.run_digest(
+        deps=deps,
+        sources=[_FakeSource([wanted, excluded])],
+        notifier=notifier,
+        settings=_settings(),
+        watchlist=None,
+        compose_digest=lambda items, template, client: compose.Written("דוח", 0.0),
+        template="t",
+        now=NOW,
+        excluded_formats=["red carpet"],
+    )
+
+    assert body == "דוח"
+    row_ids = {r["id"] for r in deps.conn.execute("SELECT id FROM videos").fetchall()}
+    assert row_ids == {"tiktok:1"}  # the excluded candidate never reaches analysis/storage
 
 
 def test_run_digest_says_so_when_nothing_found(tmp_path):

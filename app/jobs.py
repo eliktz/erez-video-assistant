@@ -26,6 +26,17 @@ def _collect_all(sources, watchlist, *, since: str) -> list:
     return found
 
 
+def parse_excluded_formats(text: str) -> list[str]:
+    """One term per line in prompts/excluded_formats.md; '#' lines are comments."""
+    return [line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#")]
+
+
+def _excluded(candidate, terms: list[str]) -> bool:
+    """True if the caption names a format Erez asked to never see (e.g. 'red carpet')."""
+    caption = (candidate.caption or "").lower()
+    return any(term.lower() in caption for term in terms)
+
+
 def _analyze_candidate(candidate, *, deps) -> dict | None:
     cached = videos.get_analysis(deps.conn, candidate.id, gemini.RUBRIC_VERSION)
     if cached:
@@ -116,7 +127,8 @@ def plain_digest(items: list[dict]) -> str:
 
 
 def run_digest(
-    *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str
+    *, deps, sources, notifier, settings, watchlist, compose_digest, template, now: str,
+    excluded_formats: list[str] = (),
 ) -> str | None:
     """Collect, rank, analyze, compose, publish, send. Returns the body, or None."""
     if bot.over_budget(deps.conn, deps.monthly_cap_usd, now[:7]):
@@ -125,6 +137,7 @@ def run_digest(
 
     for_date = now[:10]
     candidates = _collect_all(sources, watchlist, since=_since(now, settings))
+    candidates = [c for c in candidates if not _excluded(c, excluded_formats)]
     picked = rank.top_n(candidates, n=settings["digest"]["max_videos"], now=now)
     items = _build_items(picked, deps=deps, now=now)
 
