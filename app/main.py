@@ -8,7 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from app import bot, config, ideas, jobs
+from app import bot, config, followup, ideas, jobs
 from app.analyze import gemini
 from app.collect.trending import TrendingChart
 from app.collect.youtube import YouTubeSource
@@ -67,7 +67,8 @@ async def on_start(update: Update, ctx) -> None:
     await update.message.reply_text(
         "היי ארז 👋\nשלח לי לינק לרילס/טיקטוק/שורטס ואני אנתח לך אותו.\n"
         "כל בוקר ב-7:00 תקבל ממני דוח טרנדים.\n"
-        "תשלח /idea ואני אציע לך רעיונות לסרטון הבא שלך."
+        "תשלח /idea ואני אציע לך רעיונות לסרטון הבא שלך.\n"
+        "תענה (reply) על הודעה שלי — ואני אמשיך איתך משם."
     )
 
 
@@ -94,11 +95,29 @@ async def on_idea(update: Update, ctx) -> None:
     await _reply_chunked(update, ideas.pitch(ctx.bot_data["deps"], template))
 
 
+async def _on_follow_up(update: Update, ctx, quoted: str) -> None:
+    """Erez replied to a bot message ("תפתח רעיון 2") — continue that thread."""
+    await update.message.reply_text("חושב... 💭")
+    template = config.load_prompts("bot_persona", "follow_up")
+    try:
+        reply = followup.continue_thread(
+            ctx.bot_data["deps"], quoted=quoted, reply=update.message.text, template=template
+        )
+    except Exception:
+        log.exception("Follow-up reply failed")
+        reply = "משהו נתקע אצל ספק ה-AI (עומס זמני אצלם). נסה לשלוח שוב עוד דקה 🙏"
+    await _reply_chunked(update, reply)
+
+
 async def on_message(update: Update, ctx) -> None:
     if not _authorized(update, ctx):
         return
     match = bot.URL_RE.search(update.message.text or "")
     if not match:
+        quoted = followup.quoted_bot_text(update.message, ctx.bot.id)
+        if quoted is not None:
+            await _on_follow_up(update, ctx, quoted)
+            return
         # In the group, Erez and Elik also just talk. Only nag for a link in a private
         # chat; in a group, stay silent unless there is actually a URL to analyze.
         if update.effective_chat.type == "private":

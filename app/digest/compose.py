@@ -74,3 +74,16 @@ def pitch_ideas(analyses: list[dict], template: str, client) -> Written:
         analyses, ensure_ascii=False, indent=2
     )
     return _write(client, system=template, prompt=prompt)
+
+
+def continue_thread(quoted: str, reply: str, template: str, client) -> Written:
+    """Erez replied to one of the bot's messages — keep that conversation going.
+
+    The context is the quoted message itself (Telegram hands it to us), so no
+    conversation memory is needed. The field names are explained to the model
+    in prompts/follow_up.md — Erez's file.
+    """
+    prompt = json.dumps(
+        {"my_previous_message": quoted, "erez_reply": reply}, ensure_ascii=False, indent=2
+    )
+    return _write(client, system=template, prompt=prompt)
