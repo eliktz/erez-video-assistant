@@ -1,7 +1,7 @@
 """Load Erez-owned YAML and prompts, plus env vars. Fails loudly on bad input."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -16,9 +16,18 @@ class Creator:
 
 
 @dataclass(frozen=True)
+class Discovery:
+    """/discover: which hashtags to hunt new creators with, and the size floor."""
+
+    hashtags: list[str] = field(default_factory=list)
+    min_subscribers: int = 10_000
+
+
+@dataclass(frozen=True)
 class Watchlist:
     creators: list[Creator]
     topics: list[str]
+    discovery: Discovery = field(default_factory=Discovery)
 
 
 def load_watchlist(path: str = "config/watchlist.yaml") -> Watchlist:
@@ -37,7 +46,12 @@ def load_watchlist(path: str = "config/watchlist.yaml") -> Watchlist:
             )
         creators.append(Creator(platform=platform, handle=str(entry["handle"])))
     topics = [str(t) for t in (data.get("topics") or [])]
-    return Watchlist(creators=creators, topics=topics)
+    disc = data.get("discovery") or {}
+    discovery = Discovery(
+        hashtags=[str(h) for h in (disc.get("hashtags") or [])],
+        min_subscribers=int(disc.get("min_subscribers", 10_000)),
+    )
+    return Watchlist(creators=creators, topics=topics, discovery=discovery)
 
 
 def load_settings(path: str = "config/settings.yaml") -> dict:
